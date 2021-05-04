@@ -119,9 +119,9 @@ void TablePlot::rebuild_cache(size_t from, size_t count) {
     qDebug() << Q_FUNC_INFO << "Num cols in source" << num_cols;
 
     // lets do points
-    auto& x_row_raw = m_table_data->storage().data.at(m_xcol);
-    auto& y_row_raw = m_table_data->storage().data.at(m_ycol);
-    auto& z_row_raw = m_table_data->storage().data.at(m_zcol);
+    auto& x_row_raw = m_table_data->get_columns().at(m_xcol);
+    auto& y_row_raw = m_table_data->get_columns().at(m_ycol);
+    auto& z_row_raw = m_table_data->get_columns().at(m_zcol);
 
     auto num_rows = std::min(x_row_raw.size(),
                              std::min(y_row_raw.size(), z_row_raw.size()));
@@ -151,9 +151,9 @@ void TablePlot::rebuild_cache(size_t from, size_t count) {
     double const blank = 0.0;
 
     auto seat_source =
-        [&blank](TableColumn const& c) -> std::span<double const> {
-        if (c.is_reals()) return c.as_reals();
-        return { &blank, 1 };
+        [&blank](noo::TableColumn const& c) -> std::span<double const> {
+        if (c.is_string()) return { &blank, 1 };
+        return c.as_doubles();
     };
 
     auto x_source = seat_source(x_row_raw);
@@ -193,28 +193,22 @@ void TablePlot::rebuild_cache(size_t from, size_t count) {
     } else {
         // something is defined
 
-        auto& color_raw = m_table_data->storage().data.at(m_color_col);
+        auto& color_raw = m_table_data->get_columns().at(m_color_col);
 
-        if (color_raw.is_reals()) {
+        if (!color_raw.is_string()) {
 
-            auto& reals = color_raw.as_reals();
+            auto reals = color_raw.as_doubles();
 
             for (size_t row = from; row < last; row++) {
                 m_colors[row] = glm::vec3(modulus_indexed(reals, row));
             }
 
-        } else if (color_raw.is_strings()) {
+        } else {
 
-            auto& strings = color_raw.as_strings();
+            auto strings = color_raw.as_string();
 
             for (size_t row = from; row < last; row++) {
                 m_colors[row] = color_to_vec3(modulus_indexed(strings, row));
-            }
-        } else if (color_raw.is_vectors()) {
-            auto& vecs = color_raw.as_vectors();
-
-            for (size_t row = from; row < last; row++) {
-                m_colors[row] = modulus_indexed(vecs, row);
             }
         }
     }
@@ -233,21 +227,14 @@ void TablePlot::rebuild_cache(size_t from, size_t count) {
         }
     } else {
 
-        auto& scale_raw = m_table_data->storage().data.at(m_size_col);
+        auto& scale_raw = m_table_data->get_columns().at(m_size_col);
 
-        if (scale_raw.is_reals()) {
+        if (!scale_raw.is_string()) {
 
-            auto& reals = scale_raw.as_reals();
+            auto reals = scale_raw.as_doubles();
 
             for (size_t row = from; row < last; row++) {
                 m_scales[row] = glm::vec3(modulus_indexed(reals, row));
-            }
-
-        } else if (scale_raw.is_vectors()) {
-            auto& vecs = scale_raw.as_vectors();
-
-            for (size_t row = from; row < last; row++) {
-                m_scales[row] = modulus_indexed(vecs, row);
             }
         }
     }
@@ -276,7 +263,7 @@ TablePlot::TablePlot(Plotty&                             host,
 
 
     noo::TableData table_data;
-    table_data.name   = table->storage().name;
+    table_data.name   = table->name;
     table_data.source = table;
 
     m_noo_table = noo::create_table(m_doc, table_data);
@@ -284,15 +271,20 @@ TablePlot::TablePlot(Plotty&                             host,
     set_columns(0, 1, 2, -1, -1, {});
 
     connect(table.get(),
-            &SimpleTable::table_row_added,
+            &SimpleTable::table_row_deleted,
             this,
-            &TablePlot::on_rows_inserted_at);
+            &TablePlot::on_table_updated);
 
-    on_rows_inserted_at(0, -1); // negative 1 will get turned into max
+    connect(table.get(),
+            &SimpleTable::table_row_updated,
+            this,
+            &TablePlot::on_table_updated);
+
+    on_table_updated();
 }
 
 TablePlot::~TablePlot() = default;
 
-void TablePlot::on_rows_inserted_at(int64_t at, int64_t count) {
-    rebuild_cache(at, count); // signed to unsigned intended
+void TablePlot::on_table_updated() {
+    rebuild_cache(); // signed to unsigned intended
 }

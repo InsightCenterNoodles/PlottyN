@@ -77,14 +77,14 @@ void ImagePlot::rebuild(Domain const& d) {
     m_obj = create_object(m_doc, object_data);
 }
 
-ImagePlot::ImagePlot(Plotty&                host,
-                     int64_t                id,
-                     std::vector<std::byte> image_data,
-                     glm::vec3              top_left,
-                     glm::vec3              bottom_left,
-                     glm::vec3              bottom_right)
+ImagePlot::ImagePlot(Plotty&                    host,
+                     int64_t                    id,
+                     std::span<std::byte const> image_data,
+                     glm::vec3                  top_left,
+                     glm::vec3                  bottom_left,
+                     glm::vec3                  bottom_right)
     : Plot(host, id),
-      m_image_data(std::move(image_data)),
+      m_image_data(image_data.begin(), image_data.end()),
       m_top_left(top_left),
       m_bottom_left(bottom_left),
       m_bottom_right(bottom_right) {

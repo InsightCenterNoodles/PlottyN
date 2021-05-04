@@ -17,4 +17,5 @@ PRIVATE
     tableplot.h
     utility.cpp
     utility.h
+    variant_tools.h
 )

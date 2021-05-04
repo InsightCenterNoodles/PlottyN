@@ -1,7 +1,7 @@
 #ifndef PLOT_H
 #define PLOT_H
 
-#include <server_interface.h>
+#include <noo_server_interface.h>
 
 #include <QObject>
 

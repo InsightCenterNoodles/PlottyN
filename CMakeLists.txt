@@ -27,10 +27,10 @@ CPMAddPackage(
 CPMAddPackage(
     NAME noodles
     GITHUB_REPOSITORY InsightCenterNoodles/NoodlesPlusPlus
-    GIT_TAG 75bd7159def01db6fcb54b95bdfad668a4b21014
+    GIT_TAG 73949fbf4ff4f107827da84415baa32346d44c2d
 )
 
-find_package(Qt5 COMPONENTS WebSockets Core)
+find_package(Qt5 COMPONENTS WebSockets Core Gui)
 
 # Options ======================================================================
 
@@ -53,7 +53,8 @@ target_link_libraries(PlottyN PRIVATE glm)
 target_link_libraries(PlottyN PRIVATE noodles)
 
 target_link_libraries(PlottyN PUBLIC
-    Qt::Core Qt::WebSockets
+    Qt::Core Qt::WebSockets Qt::Gui
 )
 
 add_subdirectory(src)
+GroupSourcesByFolder(PlottyN)

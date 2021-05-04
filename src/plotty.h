@@ -1,7 +1,7 @@
 #ifndef PLOTTY_H
 #define PLOTTY_H
 
-#include <server_interface.h>
+#include <noo_server_interface.h>
 
 #include <memory>
 #include <unordered_map>
