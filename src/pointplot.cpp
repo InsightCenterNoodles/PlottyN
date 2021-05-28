@@ -1,129 +1,125 @@
 #include "pointplot.h"
 
+#include "glyphs.h"
 #include "utility.h"
 
 #include <QDebug>
 
-static std::vector<glm::vec3> const sphere_vertex_info = {
-    { 0.000000, -1.250544, 0.000000 },   { 0.904894, -0.559262, 0.657436 },
-    { -0.345632, -0.559262, 1.063763 },  { -1.118518, -0.559262, 0.000000 },
-    { -0.345632, -0.559262, -1.063763 }, { 0.904894, -0.559262, -0.657436 },
-    { 0.345632, 0.559262, 1.063763 },    { -0.904894, 0.559262, 0.657436 },
-    { -0.904894, 0.559262, -0.657436 },  { 0.345632, 0.559262, -1.063763 },
-    { 1.118518, 0.559262, 0.000000 },    { 0.000000, 1.250544, 0.000000 },
-};
-
-static std::vector<glm::vec3> const sphere_normal_info = []() {
-    std::vector<glm::vec3> ret = sphere_vertex_info;
-
-    for (auto& n : ret) {
-        n = glm::normalize(n);
-    }
-
-    return ret;
-}();
-
-static std::vector<glm::u16vec3> const sphere_index_info = {
-    { 0, 1, 2 },   { 1, 0, 5 },  { 0, 2, 3 },  { 0, 3, 4 },  { 0, 4, 5 },
-    { 1, 5, 10 },  { 2, 1, 6 },  { 3, 2, 7 },  { 4, 3, 8 },  { 5, 4, 9 },
-    { 1, 10, 6 },  { 2, 6, 7 },  { 3, 7, 8 },  { 4, 8, 9 },  { 5, 9, 10 },
-    { 6, 10, 11 }, { 7, 6, 11 }, { 8, 7, 11 }, { 9, 8, 11 }, { 10, 9, 11 },
-};
-
-static auto build_common_sphere(noo::DocumentTPtr doc,
-                                noo::TableTPtr    table = {}) {
-    noo::MaterialData mat;
-    mat.color        = { 1, 1, 1, 1 };
-    mat.metallic     = 0;
-    mat.roughness    = 1;
-    mat.use_blending = false;
-
-    auto mat_ptr = create_material(doc, mat);
-
-    noo::BufferMeshDataRef mesh_data;
-
-    mesh_data.positions = sphere_vertex_info;
-    mesh_data.normals   = sphere_normal_info;
-    mesh_data.triangles = sphere_index_info;
-
-    auto mesh = create_mesh(doc, mesh_data);
-
-    noo::ObjectData object_data;
-    object_data.material  = mat_ptr;
-    object_data.transform = glm::mat4(1);
-    object_data.mesh      = mesh;
-
-    if (table) { object_data.tables.push_back(table); }
-
-    auto obj = create_object(doc, object_data);
-
-    return std::make_tuple(mat_ptr, mesh, obj);
-}
-
-
-void PointPlot::rebuild_instances(size_t from, size_t count) {
-    qDebug() << Q_FUNC_INFO << "ask" << from << count;
-    from  = std::clamp<size_t>(from, 0, m_points.size());
-    count = std::clamp<size_t>(count, 0, m_points.size() - from);
-    qDebug() << Q_FUNC_INFO << "resolved" << from << count;
-
-    if (count == 0) {
-        m_instances.clear();
-
-        noo::ObjectUpdateData up;
-        up.instances = m_instances;
-
-        noo::update_object(m_obj, up);
-        return;
-    }
-
-    assert(from < m_points.size());
-    assert(count + from <= m_points.size());
-
-    auto num_rows = m_points.size();
-
-    m_instances.resize(num_rows);
-
-    if (m_instances.empty()) return;
-
-    glm::vec3 default_col(1);
-    glm::vec3 default_scale(1);
-
-
-    std::span<glm::vec3> col_array =
-        m_colors.size() ? std::span<glm::vec3>(m_colors)
-                        : std::span<glm::vec3>(&default_col, 1);
-
-    std::span<glm::vec3> scale_array =
-        m_scales.size() ? std::span<glm::vec3>(m_scales)
-                        : std::span<glm::vec3>(&default_scale, 1);
-
+void PointPlot::rebuild_instances() {
     auto d = m_host->domain()->current_domain();
 
-    for (size_t i = from; i < (from + count); i++) {
-        glm::mat4& m = m_instances[i];
+    auto px = m_data_source.get_doubles_at(m_column_mapping[PX]);
+    auto py = m_data_source.get_doubles_at(m_column_mapping[PY]);
+    auto pz = m_data_source.get_doubles_at(m_column_mapping[PZ]);
 
-        m[0] = glm::vec4(d.transform(m_points[i]), 1);
-        m[1] = glm::vec4(col_array[i % col_array.size()], 0);
-        m[2] = glm::vec4(0, 0, 0, 1);
-        m[3] = glm::vec4(scale_array[i % scale_array.size()], 1);
-    }
+    m_scatter_instances.build_instances(
+        {
+            .px = px,
+            .py = py,
+            .pz = pz,
+
+            .cr = m_data_source.get_doubles_at(m_column_mapping[CR]),
+            .cg = m_data_source.get_doubles_at(m_column_mapping[CG]),
+            .cb = m_data_source.get_doubles_at(m_column_mapping[CB]),
+
+            .sx = m_data_source.get_doubles_at(m_column_mapping[SX]),
+            .sy = m_data_source.get_doubles_at(m_column_mapping[SY]),
+            .sz = m_data_source.get_doubles_at(m_column_mapping[SZ]),
+        },
+        d);
 
     noo::ObjectUpdateData up;
-    up.instances = m_instances;
+    up.instances = m_scatter_instances.instances();
 
     noo::update_object(m_obj, up);
+
+    auto* sd = m_host->domain();
+
+    if (px.size() and sd->domain_auto_updates()) {
+        auto [l, h] = min_max_of(px, py, pz);
+        m_host->domain()->ask_update_input_bounds(l, h);
+    }
 }
 
 PointPlot::PointPlot(Plotty&                  host,
                      int64_t                  id,
-                     std::vector<glm::vec3>&& points,
+                     std::span<double const>  px,
+                     std::span<double const>  py,
+                     std::span<double const>  pz,
                      std::vector<glm::vec3>&& colors,
                      std::vector<glm::vec3>&& scales)
-    : Plot(host, id),
-      m_points(std::move(points)),
-      m_colors(std::move(colors)),
-      m_scales(std::move(scales)) {
+    : Plot(host, id) {
+
+    {
+        auto num_points = px.size();
+
+        std::vector<LoadTableColumn> columns;
+
+        columns.emplace_back("x", px);
+        columns.emplace_back("y", py);
+        columns.emplace_back("z", pz);
+
+        m_column_mapping[PX] = 0;
+        m_column_mapping[PY] = 1;
+        m_column_mapping[PZ] = 2;
+
+        int next_column = 3;
+
+        {
+            if (colors.empty()) { colors.push_back({ 1, 1, 1 }); }
+
+            std::vector<double> r, g, b;
+
+            r.resize(num_points);
+            g.resize(num_points);
+            b.resize(num_points);
+
+            for (size_t i = 0; i < num_points; i++) {
+                r[i] = colors[i % colors.size()].x;
+                g[i] = colors[i % colors.size()].y;
+                b[i] = colors[i % colors.size()].z;
+            }
+
+            columns.emplace_back("r", std::move(r));
+            columns.emplace_back("g", std::move(g));
+            columns.emplace_back("b", std::move(b));
+
+            m_column_mapping[CR] = next_column++;
+            m_column_mapping[CG] = next_column++;
+            m_column_mapping[CB] = next_column++;
+        }
+
+        {
+            if (scales.empty()) { scales.push_back({ .02, .02, .02 }); }
+
+            // so we are duplicating the values here to make the table a bit
+            // more sane for viewers
+            std::vector<double> sx, sy, sz;
+
+            sx.resize(num_points);
+            sy.resize(num_points);
+            sz.resize(num_points);
+
+            for (size_t i = 0; i < num_points; i++) {
+                sx[i] = scales[i % scales.size()].x;
+                sy[i] = scales[i % scales.size()].y;
+                sz[i] = scales[i % scales.size()].z;
+            }
+
+            columns.emplace_back("sx", std::move(sx));
+            columns.emplace_back("sy", std::move(sy));
+            columns.emplace_back("sz", std::move(sz));
+
+            m_column_mapping[SX] = next_column++;
+            m_column_mapping[SY] = next_column++;
+            m_column_mapping[SZ] = next_column++;
+        }
+
+        auto tbl = std::make_shared<SimpleTable>(
+            "Point Table " + std::to_string(id), std::move(columns));
+
+        m_data_source = DataSource(m_doc, tbl);
+    }
 
     auto [pmat, pmesh, pobj] = build_common_sphere(m_doc);
 
@@ -131,57 +127,72 @@ PointPlot::PointPlot(Plotty&                  host,
     m_mesh = pmesh;
     m_obj  = pobj;
 
-    if (m_points.size()) {
-        auto [l, h] = min_max_of(m_points);
+    if (px.size()) {
+        auto [l, h] = min_max_of(px, py, pz);
         host.domain()->ask_update_input_bounds(l, h);
     }
 
     rebuild_instances();
+
+    connect(&m_data_source.table(),
+            &SimpleTable::table_row_deleted,
+            this,
+            &PointPlot::on_table_updated);
+
+    connect(&m_data_source.table(),
+            &SimpleTable::table_row_updated,
+            this,
+            &PointPlot::on_table_updated);
 }
 
 PointPlot::~PointPlot() { }
 
-void PointPlot::append(std::span<glm::vec3> points,
-                       std::span<glm::vec3> colors,
-                       std::span<glm::vec3> scales) {
+// void PointPlot::append(std::span<glm::vec3> points,
+//                       std::span<glm::vec3> colors,
+//                       std::span<glm::vec3> scales) {
 
-    if (points.empty()) return;
+//    if (points.empty()) return;
 
 
-    {
-        auto [l, h] = min_max_of(points);
-        m_host->domain()->ask_update_input_bounds(l, h);
-    }
+//    {
+//        auto [l, h] = min_max_of(points);
+//        m_host->domain()->ask_update_input_bounds(l, h);
+//    }
 
-    m_points.insert(m_points.end(), points.begin(), points.end());
-    m_colors.insert(m_colors.end(), colors.begin(), colors.end());
-    m_scales.insert(m_scales.end(), scales.begin(), scales.end());
+//    m_points.insert(m_points.end(), points.begin(), points.end());
+//    m_colors.insert(m_colors.end(), colors.begin(), colors.end());
+//    m_scales.insert(m_scales.end(), scales.begin(), scales.end());
 
-    rebuild_instances();
-}
+//    rebuild_instances();
+//}
 
-inline void replace(std::span<glm::vec3> source, std::vector<glm::vec3>& dest) {
-    dest.resize(source.size());
+// inline void replace(std::span<glm::vec3> source, std::vector<glm::vec3>&
+// dest) {
+//    dest.resize(source.size());
 
-    std::copy(source.begin(), source.end(), dest.begin());
-}
+//    std::copy(source.begin(), source.end(), dest.begin());
+//}
 
-void PointPlot::replace_with(std::span<glm::vec3> points,
-                             std::span<glm::vec3> colors,
-                             std::span<glm::vec3> scales) {
+// void PointPlot::replace_with(std::span<glm::vec3> points,
+//                             std::span<glm::vec3> colors,
+//                             std::span<glm::vec3> scales) {
 
-    replace(points, m_points);
-    replace(colors, m_colors);
-    replace(scales, m_scales);
+//    replace(points, m_points);
+//    replace(colors, m_colors);
+//    replace(scales, m_scales);
 
-    if (m_points.size()) {
-        auto [l, h] = min_max_of(m_points);
-        m_host->domain()->ask_update_input_bounds(l, h);
-    }
+//    if (m_points.size()) {
+//        auto [l, h] = min_max_of(m_points);
+//        m_host->domain()->ask_update_input_bounds(l, h);
+//    }
 
-    rebuild_instances();
-}
+//    rebuild_instances();
+//}
 
 void PointPlot::domain_updated(Domain const&) {
+    rebuild_instances();
+}
+
+void PointPlot::on_table_updated() {
     rebuild_instances();
 }

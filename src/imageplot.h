@@ -18,12 +18,12 @@ class ImagePlot : public Plot {
     void rebuild(Domain const&);
 
 public:
-    ImagePlot(Plotty&                host,
-              int64_t                id,
-              std::vector<std::byte> image_data,
-              glm::vec3              top_left,
-              glm::vec3              bottom_left,
-              glm::vec3              bottom_right);
+    ImagePlot(Plotty&                    host,
+              int64_t                    id,
+              std::span<std::byte const> image_data,
+              glm::vec3                  top_left,
+              glm::vec3                  bottom_left,
+              glm::vec3                  bottom_right);
 
     ~ImagePlot() override;
 

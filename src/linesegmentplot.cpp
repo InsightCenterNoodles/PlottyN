@@ -116,13 +116,18 @@ void LineSegmentPlot::rebuild_instances() {
 
 LineSegmentPlot::LineSegmentPlot(Plotty&                  host,
                                  int64_t                  id,
-                                 std::vector<glm::vec3>&& points,
+                                 std::span<double const>  px,
+                                 std::span<double const>  py,
+                                 std::span<double const>  pz,
                                  std::vector<glm::vec3>&& colors,
                                  std::vector<glm::vec2>&& scales)
-    : Plot(host, id),
-      m_points(std::move(points)),
-      m_colors(std::move(colors)),
-      m_scales(std::move(scales)) {
+    : Plot(host, id), m_colors(std::move(colors)), m_scales(std::move(scales)) {
+
+    m_points.resize(px.size());
+
+    for (size_t i = 0; i < px.size(); i++) {
+        m_points[i] = { px[i], py[i], pz[i] };
+    }
 
     auto [pmat, pmesh, pobj] = build_common_tube(m_doc);
 
@@ -131,7 +136,7 @@ LineSegmentPlot::LineSegmentPlot(Plotty&                  host,
     m_obj  = pobj;
 
     {
-        auto [l, h] = min_max_of(points);
+        auto [l, h] = min_max_of(m_points);
 
         host.domain()->ask_update_input_bounds(l, h);
     }

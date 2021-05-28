@@ -2,15 +2,15 @@
 #define UTILITY_H
 
 
-#define GLM_ENABLE_EXPERIMENTAL
-
-#define GLM_FORCE_SIZE_T_LENGTH
-#define GLM_FORCE_SIZE_FUNC
-#include <glm/glm.hpp>
+#include "noo_include_glm.h"
 
 #include <span>
 
 std::pair<glm::vec3, glm::vec3> min_max_of(std::span<glm::vec3 const>);
+
+std::pair<glm::vec3, glm::vec3> min_max_of(std::span<double const> x,
+                                           std::span<double const> y,
+                                           std::span<double const> z);
 
 
 #endif // UTILITY_H

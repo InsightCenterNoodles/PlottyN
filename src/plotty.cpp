@@ -6,45 +6,29 @@
 #include "simpletable.h"
 #include "tableplot.h"
 
-#include "../shared/variant_tools.h"
+#include "variant_tools.h"
 
 #include <glm/gtx/quaternion.hpp>
 
 #include <QColor>
 #include <QDebug>
 
-struct PositionListArgument {
-    std::vector<glm::vec3> positions;
-
-    PositionListArgument() = default;
-    PositionListArgument(noo::AnyVar&& av) {
-        auto reals = av.coerce_real_list();
-
-        if (reals.size()) {
-
-            positions.resize(reals.size() / 3);
-
-            for (size_t i = 0; i < positions.size(); i += 3) {
-                positions[i] = { reals[i + 0], reals[i + 1], reals[i + 2] };
-            }
-            return;
-        }
-    }
-};
-
 struct ColorListArgument {
     std::vector<glm::vec3> colors;
 
     ColorListArgument() = default;
-    ColorListArgument(noo::AnyVar&& av) {
-        auto reals = av.coerce_real_list();
+    ColorListArgument(noo::AnyVarRef av) {
+        auto reals     = av.coerce_real_list();
+        auto real_span = reals.span();
 
         if (reals.size()) {
 
             colors.resize(reals.size() / 3);
 
             for (size_t i = 0; i < colors.size(); i += 3) {
-                colors[i] = { reals[i + 0], reals[i + 1], reals[i + 2] };
+                colors[i] = { real_span[i + 0],
+                              real_span[i + 1],
+                              real_span[i + 2] };
             }
             return;
         }
@@ -52,17 +36,17 @@ struct ColorListArgument {
         // not real list. string list?
 
         if (av.has_list()) {
-            auto raw_colors = av.steal_vector();
+            auto raw_colors = av.to_vector();
 
             colors.reserve(raw_colors.size());
 
-            for (auto& raw_c : raw_colors) {
-                auto str = raw_c.steal_string();
+            raw_colors.for_each([&](auto, auto const& raw_c) {
+                auto str = raw_c.to_string();
 
-                auto c = QColor(str.c_str());
+                auto c = QColor(noo::to_qstring(str));
 
                 colors.emplace_back(c.redF(), c.greenF(), c.blueF());
-            }
+            });
         }
     }
 };
@@ -71,15 +55,18 @@ struct Scale3DListArgument {
     std::vector<glm::vec3> scales;
 
     Scale3DListArgument() = default;
-    Scale3DListArgument(noo::AnyVar&& av) {
-        auto reals = av.coerce_real_list();
+    Scale3DListArgument(noo::AnyVarRef av) {
+        auto reals     = av.coerce_real_list();
+        auto real_span = reals.span();
 
         if (reals.size()) {
 
             scales.resize(reals.size() / 3);
 
             for (size_t i = 0; i < scales.size(); i += 3) {
-                scales[i] = { reals[i + 0], reals[i + 1], reals[i + 2] };
+                scales[i] = { real_span[i + 0],
+                              real_span[i + 1],
+                              real_span[i + 2] };
             }
             return;
         }
@@ -90,15 +77,16 @@ struct Scale2DListArgument {
     std::vector<glm::vec2> scales;
 
     Scale2DListArgument() = default;
-    Scale2DListArgument(noo::AnyVar&& av) {
-        auto reals = av.coerce_real_list();
+    Scale2DListArgument(noo::AnyVarRef av) {
+        auto reals     = av.coerce_real_list();
+        auto real_span = reals.span();
 
         if (reals.size()) {
 
             scales.resize(reals.size() / 2);
 
             for (size_t i = 0; i < scales.size(); i += 2) {
-                scales[i] = { reals[i + 0], reals[i + 1] };
+                scales[i] = { real_span[i + 0], real_span[i + 1] };
             }
             return;
         }
@@ -133,6 +121,13 @@ void SharedDomain::ask_set_domain(Domain d) {
 
 void SharedDomain::ask_update_input_bounds(glm::vec3 l, glm::vec3 h) {
     if (!m_domain_auto) return;
+
+    bool l_ok = glm::distance(m_current_domain.input_min, l) <=
+                std::numeric_limits<float>::epsilon();
+    bool h_ok = glm::distance(m_current_domain.input_max, h) <=
+                std::numeric_limits<float>::epsilon();
+
+    if (l_ok and h_ok) return;
 
     qDebug() << "Bounds updated" << l.x << l.y << l.z << h.x << h.y << h.z;
 
@@ -176,6 +171,9 @@ void Plotty::make_box() {
         select(1, 0, 0), select(1, 0, 1), select(1, 1, 0), select(1, 1, 1),
     };
 
+    std::array<glm::u8vec4, 8> box_c;
+    box_c.fill({ 255, 255, 255, 255 });
+
     static std::vector<glm::u16vec2> const box_i = {
         { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }, { 0, 2 }, { 1, 3 },
         { 4, 6 }, { 5, 7 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
@@ -186,6 +184,7 @@ void Plotty::make_box() {
         noo::BufferMeshDataRef md;
 
         md.positions = box_p;
+        md.colors    = box_c;
         md.lines     = box_i;
 
         m_box_mesh = noo::create_mesh(m_doc, md);
@@ -252,12 +251,13 @@ struct ForceToGLMVec3 {
     glm::vec3 v;
 
     ForceToGLMVec3() = default;
-    ForceToGLMVec3(noo::AnyVar&& rv) {
-        auto l = rv.coerce_real_list();
+    ForceToGLMVec3(noo::AnyVarRef rv) {
+        auto l  = rv.coerce_real_list();
+        auto sp = l.span();
 
-        v.x = noo::get_or_default(l, 0);
-        v.y = noo::get_or_default(l, 1);
-        v.z = noo::get_or_default(l, 2);
+        v.x = noo::get_or_default(sp, 0);
+        v.y = noo::get_or_default(sp, 1);
+        v.z = noo::get_or_default(sp, 2);
     }
 };
 
@@ -302,88 +302,6 @@ auto make_set_domain_method(Plotty& p) {
     return noo::create_method(p.document().get(), m);
 }
 
-// Add table ===================================================================
-
-auto make_load_table_method(Plotty& p) {
-    noo::MethodData m;
-    m.method_name            = "load_table";
-    m.documentation          = "Load a new table";
-    m.argument_documentation = {
-        { "string", "Name of the new table." },
-        { "{ \"c\": [ reals ], ... }",
-          "Columns; each key in the object is the column name, and maps to a "
-          "list of data (reals). As an alternative, this argument can be [ "
-          "{\"name\" : \"str\", \"data\" : [ reals ]} ]." },
-    };
-    m.return_documentation = "An integer plot id";
-
-    struct LoadTableColumn {
-        std::string         name;
-        std::vector<double> reals;
-
-        LoadTableColumn() = default;
-
-        LoadTableColumn(std::string s, std::vector<double>&& r)
-            : name(std::move(s)), reals(std::move(r)) { }
-
-        LoadTableColumn(noo::AnyVar&& var) {
-            auto obj = var.steal_map();
-
-            name  = noo::steal_or_default(obj, "name").steal_string();
-            reals = noo::steal_or_default(obj, "data").coerce_real_list();
-        }
-    };
-
-    struct Columns {
-        std::vector<LoadTableColumn> cols;
-
-        Columns(noo::AnyVar&& var) {
-            VMATCH(
-                var,
-                VCASE(noo::AnyVarList & l) {
-                    for (auto& pack : l) {
-                        cols.emplace_back(std::move(pack));
-                    }
-                },
-                VCASE(noo::AnyVarMap & m) {
-                    for (auto& [k, v] : m) {
-                        cols.emplace_back(k, v.coerce_real_list());
-                    }
-                },
-                VCASE(auto&) {
-                    auto s = var.dump_string();
-                    qDebug() << "Unknown argument" << s.c_str();
-                })
-        }
-    };
-
-    m.set_code([&p](noo::MethodContext const&, std::string name, Columns pack) {
-        qDebug() << "Asking for new table" << name.c_str();
-        if (pack.cols.size() == 0) {
-            throw noo::MethodException("No columns given. Check input format.");
-        }
-
-        TableStorage storage;
-
-        storage.name = name;
-
-        storage.header.reserve(pack.cols.size());
-        storage.data.reserve(pack.cols.size());
-
-        for (auto& c : pack.cols) {
-            storage.header.emplace_back(c.name);
-            storage.data.emplace_back(std::move(c.reals));
-        }
-
-        auto table = std::make_shared<SimpleTable>(std::move(storage));
-
-        return p.append<TablePlot>(-1, table);
-    });
-
-    return noo::create_method(p.document().get(), m);
-}
-
-
 // Add points ==================================================================
 
 auto make_new_point_plot_method(Plotty& p) {
@@ -391,27 +309,35 @@ auto make_new_point_plot_method(Plotty& p) {
     m.method_name            = "new_point_plot";
     m.documentation          = "Create a new point plot";
     m.argument_documentation = {
-        { "[x y z x y z]", "A list of 3D points, laid out in a 1D array." },
+        { "[x ...]", "A list of point x values." },
+        { "[y ...]", "A list of point y values." },
+        { "[z ...]", "A list of point z values." },
         { "[ c ]",
-          "A list of colors. Can be a 1D array of 3-tuple floats for RGB, or a "
+          "An optional list of colors. Can be a 1D array of 3-stride floats "
+          "for RGB, or a "
           "list of hex strings" },
         { "[sx sy sz sx sy sz]",
-          "A list of 3D scales, laid out in a 1D array." }
+          "An optional list of 3D scales, laid out in a 1D array." }
     };
     m.return_documentation = "An integer plot id";
 
 
-    // input is
-    // points [px,py,pz,px,py,pz,...]
-    // colors [cr,cg,cb,cr,cg,cb,...]
-    // scales [sx,sy,sz,sx,sy,sz,...]
-
     m.set_code([&p](noo::MethodContext const&,
-                    PositionListArgument pos,
-                    ColorListArgument    cols,
-                    Scale3DListArgument  scales) -> noo::AnyVar {
+                    noo::RealListArg    xs,
+                    noo::RealListArg    ys,
+                    noo::RealListArg    zs,
+                    ColorListArgument   cols,
+                    Scale3DListArgument scales) -> noo::AnyVar {
+        if (xs.list.size() != ys.list.size() or
+            xs.list.size() != zs.list.size()) {
+            throw noo::MethodException(
+                "Coordinate arrays must be the same length");
+        }
+
         return p.append<PointPlot>(-1,
-                                   std::move(pos.positions),
+                                   xs.list.span(),
+                                   ys.list.span(),
+                                   zs.list.span(),
                                    std::move(cols.colors),
                                    std::move(scales.scales));
     });
@@ -423,11 +349,14 @@ auto make_new_point_plot_method(Plotty& p) {
 
 auto make_new_line_segment_plot_method(Plotty& p) {
     noo::MethodData m;
-    m.method_name            = "new_line_segment_plot";
-    m.documentation          = "Create a new line segment plot";
+    m.method_name = "new_line_segment_plot";
+    m.documentation =
+        "Create a new line segment plot. Points given are connected in pairs "
+        "to create disconnected lines: a <-> b,  c <-> d";
     m.argument_documentation = {
-        { "[x y z x y z]",
-          "A list of 3D point 2-tuples, laid out in a 1D array." },
+        { "[x ...]", "A list of point x values." },
+        { "[y ...]", "A list of point y values." },
+        { "[z ...]", "A list of point z values." },
         { "[ c ]",
           "A list of colors, one color for each point. Can be a 1D array of "
           "3-tuple floats for RGB, or a list of hex strings" },
@@ -436,11 +365,21 @@ auto make_new_line_segment_plot_method(Plotty& p) {
     m.return_documentation = "An integer plot id";
 
     m.set_code([&p](noo::MethodContext const&,
-                    PositionListArgument pos,
-                    ColorListArgument    cols,
-                    Scale2DListArgument  scales) -> noo::AnyVar {
+                    noo::RealListArg    xs,
+                    noo::RealListArg    ys,
+                    noo::RealListArg    zs,
+                    ColorListArgument   cols,
+                    Scale2DListArgument scales) -> noo::AnyVar {
+        if (xs.list.size() != ys.list.size() or
+            xs.list.size() != zs.list.size()) {
+            throw noo::MethodException(
+                "Coordinate arrays must be the same length");
+        }
+
         return p.append<LineSegmentPlot>(-1,
-                                         std::move(pos.positions),
+                                         xs.list.span(),
+                                         ys.list.span(),
+                                         zs.list.span(),
                                          std::move(cols.colors),
                                          std::move(scales.scales));
     });
@@ -463,15 +402,11 @@ auto make_new_image_plot_method(Plotty& p) {
     m.return_documentation = "An integer plot id";
 
     m.set_code([&](noo::MethodContext const&,
-                   std::vector<std::byte> data,
-                   PositionListArgument   pa,
-                   PositionListArgument   pb,
-                   PositionListArgument   pc) {
-        return p.append<ImagePlot>(-1,
-                                   std::move(data),
-                                   noo::get_or_default(pa.positions, 0),
-                                   noo::get_or_default(pb.positions, 0),
-                                   noo::get_or_default(pc.positions, 0));
+                   std::span<std::byte const> data,
+                   ForceToGLMVec3             pa,
+                   ForceToGLMVec3             pb,
+                   ForceToGLMVec3             pc) {
+        return p.append<ImagePlot>(-1, data, pa.v, pb.v, pc.v);
     });
 
     return noo::create_method(p.document().get(), m);
@@ -479,81 +414,84 @@ auto make_new_image_plot_method(Plotty& p) {
 
 // Update Table ================================================================
 
-auto make_update_table_method(Plotty& p) {
+// auto make_update_table_method(Plotty& p) {
 
-    noo::MethodData update_table;
-    update_table.method_name            = "update_table_plot";
-    update_table.documentation          = "Update table plot settings";
-    update_table.argument_documentation = {
-        { "plot_id", "Table plot identifier" },
-        { "settings_array",
-          "Array (count of 5) of source data columns indicies [ x, y, z, col, "
-          "scale ]. Arg can be nothing to skip. col and scale indicies can be "
-          "negative to not use." },
-        { "color_map",
-          "Color map. A list of [ [real, 'hexcolor'], ... ], where the "
-          "real key is from 0->1. If None, will try to use the given color "
-          "column directly for colors." }
-    };
-    update_table.return_documentation = "None";
+//    noo::MethodData update_table;
+//    update_table.method_name            = "update_table_plot";
+//    update_table.documentation          = "Update table plot settings";
+//    update_table.argument_documentation = {
+//        { "plot_id", "Table plot identifier" },
+//        { "settings_array",
+//          "Array (count of 5) of source data columns indicies [ x, y, z, col,
+//          " "scale ]. Arg can be nothing to skip. col and scale indicies can
+//          be " "negative to not use." },
+//        { "color_map",
+//          "Color map. A list of [ [real, 'hexcolor'], ... ], where the "
+//          "real key is from 0->1. If None, will try to use the given color "
+//          "column directly for colors." }
+//    };
+//    update_table.return_documentation = "None";
 
-    struct ColorMapArg {
-        std::vector<std::pair<float, glm::vec3>> color_map;
+//    struct ColorMapArg {
+//        std::vector<std::pair<float, glm::vec3>> color_map;
 
-        ColorMapArg() = default;
-        ColorMapArg(noo::AnyVar&& a) {
-            auto cmap_list = a.steal_vector();
+//        ColorMapArg() = default;
+//        ColorMapArg(noo::AnyVarRef a) {
+//            auto cmap_list = a.to_vector();
 
-            for (auto& a : cmap_list) {
-                auto control_p = a.steal_vector();
+//            cmap_list.for_each([&](auto, auto v) {
+//                auto control_p = v.to_vector();
 
-                auto key   = noo::get_or_default(control_p, 0).to_real();
-                auto value = noo::get_or_default(control_p, 1).to_string();
+//                auto control_p_size = control_p.size();
 
-                auto qt_col = QColor(value.c_str());
+//                auto key   = control_p_size >= 1 ? control_p[0].to_real() : 0;
+//                auto value = control_p_size >= 2 ? control_p[0].to_string()
+//                                                 : std::string_view();
 
-                color_map.emplace_back(key,
-                                       glm::vec3 { qt_col.redF(),
-                                                   qt_col.greenF(),
-                                                   qt_col.blueF() });
-            }
-        }
-    };
+//                auto qt_col = QColor(noo::to_qstring(value));
 
-    update_table.set_code([&p](noo::MethodContext const&,
-                               int64_t              plot_id,
-                               std::vector<int64_t> columns,
-                               ColorMapArg          cmap) -> noo::AnyVar {
-        // interpret
+//                color_map.emplace_back(key,
+//                                       glm::vec3 { qt_col.redF(),
+//                                                   qt_col.greenF(),
+//                                                   qt_col.blueF() });
+//            });
+//        }
+//    };
 
-        auto* target = p.get_plot(plot_id);
+//    update_table.set_code([&p](noo::MethodContext const&,
+//                               int64_t                  plot_id,
+//                               std::span<int64_t const> columns,
+//                               ColorMapArg              cmap) -> noo::AnyVar {
+//        // interpret
 
-        if (!target) throw noo::MethodException("Bad plot id!");
+//        auto* target = p.get_plot(plot_id);
 
-        auto* table_plot = dynamic_cast<TablePlot*>(target);
+//        if (!target) throw noo::MethodException("Bad plot id!");
 
-        if (!table_plot)
-            throw noo::MethodException("Plot is not a table plot!");
+//        auto* table_plot = dynamic_cast<TablePlot*>(target);
 
-        {
-            auto x = noo::get_or_default(columns, 0);
-            auto y = noo::get_or_default(columns, 1);
-            auto z = noo::get_or_default(columns, 2);
-            auto c = noo::get_or_default(columns, 3);
-            auto s = noo::get_or_default(columns, 4);
+//        if (!table_plot)
+//            throw noo::MethodException("Plot is not a table plot!");
 
-            if (x < 0 or y < 0 or z < 0)
-                throw noo::MethodException("Need extant x y and z columns!");
+//        {
+//            auto x = get_or_default(columns, 0);
+//            auto y = get_or_default(columns, 1);
+//            auto z = get_or_default(columns, 2);
+//            auto c = get_or_default(columns, 3);
+//            auto s = get_or_default(columns, 4);
 
-            table_plot->set_columns(x, y, z, c, s, cmap.color_map);
-        }
+//            if (x < 0 or y < 0 or z < 0)
+//                throw noo::MethodException("Need extant x y and z columns!");
+
+//            table_plot->set_columns(x, y, z, c, s, cmap.color_map);
+//        }
 
 
-        return true;
-    });
+//        return true;
+//    });
 
-    return noo::create_method(p.document().get(), update_table);
-}
+//    return noo::create_method(p.document().get(), update_table);
+//}
 
 // Add Plotty ==================================================================
 
@@ -567,6 +505,8 @@ Plotty::Plotty(uint16_t port) {
 
     m_server = noo::create_server(port);
 
+    qInfo() << "Creating server, listening on port" << port;
+
     Q_ASSERT(m_server);
 
     m_doc = noo::get_document(m_server.get());
@@ -576,11 +516,11 @@ Plotty::Plotty(uint16_t port) {
     noo::DocumentData docup;
 
     {
-        auto ptr = make_load_table_method(*this);
-        docup.method_list.push_back(ptr);
+        //        auto ptr = make_load_table_method(*this);
+        //        docup.method_list.push_back(ptr);
 
 
-        ptr = make_new_point_plot_method(*this);
+        auto ptr = make_new_point_plot_method(*this);
         docup.method_list.push_back(ptr);
 
         ptr = make_new_line_segment_plot_method(*this);
@@ -592,8 +532,8 @@ Plotty::Plotty(uint16_t port) {
         ptr = make_set_domain_method(*this);
         docup.method_list.push_back(ptr);
 
-        ptr = make_update_table_method(*this);
-        docup.method_list.push_back(ptr);
+        //        ptr = make_update_table_method(*this);
+        //        docup.method_list.push_back(ptr);
     }
 
     noo::update_document(m_doc, docup);
@@ -605,6 +545,28 @@ Plotty::Plotty(uint16_t port) {
 
         m_plot_root = noo::create_object(m_doc, nd);
     }
+
+    auto add_light = [this](glm::vec3 p, QColor color, float i) {
+        auto& nl = m_lights.emplace_back();
+
+        noo::LightData light_data;
+        light_data.color     = { color.redF(), color.greenF(), color.blueF() };
+        light_data.intensity = i;
+
+        nl.l = noo::create_light(m_doc, light_data);
+
+        noo::ObjectData nd;
+
+        nd.transform = glm::translate(glm::mat4(1), p);
+
+        nd.lights.push_back(nl.l);
+
+        nl.o = noo::create_object(m_doc, nd);
+    };
+
+    add_light({ 0, 0, 1 }, Qt::white, 2);
+    add_light({ 1, 0, 0 }, QColor(200, 200, 255), 2);
+    add_light({ 0, 1, 0 }, QColor(200, 255, 200), 2);
 
     rebuild_axis();
     make_box();
@@ -624,15 +586,15 @@ SharedDomain* Plotty::domain() const {
     return m_shared_domain;
 }
 
-int64_t Plotty::add_immediate_plot(std::vector<glm::vec3>&& points,
-                                   std::vector<glm::vec3>&& colors,
-                                   std::vector<glm::vec3>&& scales) {
+// int64_t Plotty::add_immediate_plot(std::vector<glm::vec3>&& points,
+//                                   std::vector<glm::vec3>&& colors,
+//                                   std::vector<glm::vec3>&& scales) {
 
-    return append<PointPlot>(
-        0, std::move(points), std::move(colors), std::move(scales));
+//    return append<PointPlot>(
+//        0, std::move(points), std::move(colors), std::move(scales));
 
-    return 0;
-}
+//    return 0;
+//}
 
 Plot* Plotty::get_plot(size_t i) {
     auto iter = m_plots.find(i);

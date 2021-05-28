@@ -2,6 +2,8 @@
 
 #include <QDebug>
 
+#if 0
+
 TableColumn::TableColumn(RealList&& o) : column_data(std::move(o)) { }
 TableColumn::TableColumn(StringList&& o) : column_data(std::move(o)) { }
 TableColumn::TableColumn(VectorList&& o) : column_data(std::move(o)) { }
@@ -203,4 +205,46 @@ bool SimpleTable::request_set_selection(std::string_view, noo::SelectionRef) {
 
 std::vector<std::string> SimpleTable::get_all_selections() {
     return {};
+}
+
+#endif
+
+LoadTableArg::LoadTableArg(noo::AnyVarRef var) {
+    if (var.has_list()) {
+        auto l = var.to_vector();
+
+        auto ls = l.size();
+
+        for (size_t i = 0; i < ls; i++) {
+            cols.emplace_back(l[i]);
+        }
+    } else if (auto m = var.to_map(); m.size()) {
+
+        for (auto const& [k, v] : m) {
+            cols.emplace_back(k, v.coerce_real_list().span());
+        }
+    }
+}
+
+SimpleTable::SimpleTable(std::string_view               _n,
+                         std::vector<LoadTableColumn>&& cols)
+    : noo::TableSource(nullptr), name(_n) {
+
+    if (cols.empty()) return;
+
+    for (auto& a : cols) {
+        auto& new_a = m_columns.emplace_back();
+
+        new_a      = std::move(a.reals);
+        new_a.name = a.name;
+    }
+
+    m_counter = m_columns[0].size();
+    m_row_to_key_map.resize(m_counter);
+
+    std::iota(m_row_to_key_map.begin(), m_row_to_key_map.end(), 0);
+
+    for (size_t i = 0; i < m_row_to_key_map.size(); i++) {
+        m_key_to_row_map[i] = i;
+    }
 }

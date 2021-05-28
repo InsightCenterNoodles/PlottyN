@@ -1,9 +1,9 @@
 #ifndef TABLEPLOT_H
 #define TABLEPLOT_H
 
-#include "pointplot.h"
-
-class SimpleTable;
+#if 0
+#    include "pointplot.h"
+#    include "simpletable.h"
 
 class TablePlot : public PointPlot {
     Q_OBJECT
@@ -43,7 +43,9 @@ public:
                      std::vector<std::pair<float, glm::vec3>> cmap);
 
 private slots:
-    void on_rows_inserted_at(int64_t at, int64_t count);
+    void on_table_updated();
 };
+
+#endif
 
 #endif // TABLEPLOT_H
