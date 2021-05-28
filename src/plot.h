@@ -22,6 +22,14 @@ U lerp(T x, T const& x0, T const& x1, U const& y0, U const& y1) {
     return y0 + (y1 - y0) * ((x - x0) / (x1 - x0));
 }
 
+
+// template <size_t N, class T>
+// auto make_array(T value) {
+//    std::array<T, N> ret;
+//    ret.fill(value);
+//    return ret;
+//}
+
 struct Domain;
 
 class Plotty;
@@ -40,6 +48,8 @@ protected:
     noo::MaterialTPtr m_mat;
     noo::MeshTPtr     m_mesh;
     noo::ObjectTPtr   m_obj;
+
+    std::unordered_map<int, int> m_column_mapping;
 
     virtual void domain_updated(Domain const&);
 

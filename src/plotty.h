@@ -61,6 +61,11 @@ signals:
 
 // =============================================================================
 
+struct LightObj {
+    noo::ObjectTPtr o;
+    noo::LightTPtr  l;
+};
+
 class Plotty : public QObject {
     Q_OBJECT
 
@@ -71,6 +76,8 @@ class Plotty : public QObject {
     noo::ServerTPtr m_server;
 
     noo::DocumentTPtr m_doc;
+
+    std::vector<LightObj> m_lights;
 
     noo::ObjectTPtr m_plot_root;
 
@@ -125,9 +132,9 @@ public:
         return place;
     }
 
-    int64_t add_immediate_plot(std::vector<glm::vec3>&& points,
-                               std::vector<glm::vec3>&& colors,
-                               std::vector<glm::vec3>&& scales);
+    //    int64_t add_immediate_plot(std::vector<glm::vec3>&& points,
+    //                               std::vector<glm::vec3>&& colors,
+    //                               std::vector<glm::vec3>&& scales);
 
     Plot* get_plot(size_t);
 

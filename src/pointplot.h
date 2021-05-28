@@ -4,33 +4,32 @@
 #include "plot.h"
 #include "plotty.h"
 
+#include "datasource.h"
+#include "scattercore.h"
+
 class PointPlot : public Plot {
+    enum { PX, PY, PZ, CR, CG, CB, SX, SY, SZ };
+
 protected:
-    std::vector<glm::vec3> m_points;
-    std::vector<glm::vec3> m_colors;
-    std::vector<glm::vec3> m_scales;
+    DataSource m_data_source;
 
-    std::vector<glm::mat4> m_instances;
+    ScatterCore m_scatter_instances;
 
-
-    void rebuild_instances(size_t from = 0, size_t count = -1);
+    void rebuild_instances();
 
 public:
     PointPlot(Plotty&                  host,
               int64_t                  id,
-              std::vector<glm::vec3>&& points,
+              std::span<double const>  px,
+              std::span<double const>  py,
+              std::span<double const>  pz,
               std::vector<glm::vec3>&& colors,
               std::vector<glm::vec3>&& scales);
     ~PointPlot() override;
 
-    void replace_with(std::span<glm::vec3> points,
-                      std::span<glm::vec3> colors,
-                      std::span<glm::vec3> scales);
-
-    void append(std::span<glm::vec3> points,
-                std::span<glm::vec3> colors,
-                std::span<glm::vec3> scales);
-
     void domain_updated(Domain const&) override;
+
+private slots:
+    void on_table_updated();
 };
 #endif // POINTPLOT_H

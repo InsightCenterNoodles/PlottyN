@@ -1,8 +1,9 @@
 #ifndef TABLEPLOT_H
 #define TABLEPLOT_H
 
-#include "pointplot.h"
-#include "simpletable.h"
+#if 0
+#    include "pointplot.h"
+#    include "simpletable.h"
 
 class TablePlot : public PointPlot {
     Q_OBJECT
@@ -44,5 +45,7 @@ public:
 private slots:
     void on_table_updated();
 };
+
+#endif
 
 #endif // TABLEPLOT_H

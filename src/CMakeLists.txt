@@ -18,4 +18,10 @@ PRIVATE
     utility.cpp
     utility.h
     variant_tools.h
+    scattercore.cpp
+    scattercore.h
+    glyphs.cpp
+    glyphs.h
+    datasource.cpp
+    datasource.h
 )

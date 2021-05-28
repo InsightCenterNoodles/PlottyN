@@ -27,7 +27,7 @@ CPMAddPackage(
 CPMAddPackage(
     NAME noodles
     GITHUB_REPOSITORY InsightCenterNoodles/NoodlesPlusPlus
-    GIT_TAG 73949fbf4ff4f107827da84415baa32346d44c2d
+    GIT_TAG b38634b975a7a92a9ee2c5ecf5f72c3b5c5169a2
 )
 
 find_package(Qt5 COMPONENTS WebSockets Core Gui)

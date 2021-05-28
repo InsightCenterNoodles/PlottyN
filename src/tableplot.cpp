@@ -8,6 +8,8 @@
 #include <QColor>
 #include <QDebug>
 
+#if 0
+
 // consumes RGB
 glm::vec3
 color_interpolation(glm::vec3 a, glm::vec3 b, float v, float l, float h) {
@@ -288,3 +290,5 @@ TablePlot::~TablePlot() = default;
 void TablePlot::on_table_updated() {
     rebuild_cache(); // signed to unsigned intended
 }
+
+#endif

@@ -16,7 +16,9 @@ class LineSegmentPlot : public Plot {
 public:
     LineSegmentPlot(Plotty&                  host,
                     int64_t                  id,
-                    std::vector<glm::vec3>&& points,
+                    std::span<double const>  px,
+                    std::span<double const>  py,
+                    std::span<double const>  pz,
                     std::vector<glm::vec3>&& colors,
                     std::vector<glm::vec2>&& scales);
 
