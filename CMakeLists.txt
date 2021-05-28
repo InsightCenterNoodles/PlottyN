@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12...3.16)
 
-project(PlottyN VERSION 0.1 LANGUAGES CXX)
+project(PlottyN VERSION 0.2 LANGUAGES CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -27,7 +27,7 @@ CPMAddPackage(
 CPMAddPackage(
     NAME noodles
     GITHUB_REPOSITORY InsightCenterNoodles/NoodlesPlusPlus
-    GIT_TAG b38634b975a7a92a9ee2c5ecf5f72c3b5c5169a2
+    GIT_TAG 3396e530a5948416fd364cc9ffa3f5bcbb8abc3b
 )
 
 find_package(Qt5 COMPONENTS WebSockets Core Gui)
