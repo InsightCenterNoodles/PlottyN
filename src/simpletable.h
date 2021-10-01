@@ -6,8 +6,9 @@
 #include <QObject>
 
 struct LoadTableColumn {
-    std::string         name;
-    std::vector<double> reals;
+    std::string              name;
+    std::vector<double>      reals;
+    std::vector<std::string> strings;
 
     LoadTableColumn() = default;
 
@@ -16,6 +17,9 @@ struct LoadTableColumn {
 
     LoadTableColumn(std::string s, std::vector<double>&& r)
         : name(std::move(s)), reals(std::move(r)) { }
+
+    LoadTableColumn(std::string s, std::vector<std::string>&& r)
+        : name(std::move(s)), strings(std::move(r)) { }
 
     LoadTableColumn(noo::AnyVarRef var) {
         auto obj = var.to_map();
@@ -39,6 +43,10 @@ public:
     std::string name;
 
     SimpleTable(std::string_view _n, std::vector<LoadTableColumn>&& cols);
+
+    void modify_selection(std::string_view,
+                          std::span<int64_t> keys,
+                          int                select_action);
 };
 
 #endif // SIMPLETABLE_H

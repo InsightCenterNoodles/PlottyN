@@ -2,6 +2,7 @@
 
 #include "imageplot.h"
 #include "linesegmentplot.h"
+#include "plottyrootcallbacks.h"
 #include "pointplot.h"
 #include "simpletable.h"
 #include "tableplot.h"
@@ -199,9 +200,10 @@ void Plotty::make_box() {
 
 
     noo::ObjectData nd;
-    nd.parent   = plot_root();
-    nd.material = m_box_mat;
-    nd.mesh     = m_box_mesh;
+    nd.parent     = plot_root();
+    nd.definition = noo::ObjectRenderableDefinition { .material = m_box_mat,
+                                                      .mesh     = m_box_mesh };
+    nd.tags.emplace_back(noo::names::tag_noo_user_hidden);
 
 
     m_box = noo::create_object(m_doc, nd);
@@ -228,11 +230,13 @@ void Plotty::rebuild_axis() {
             otd.text   = t;
             otd.height = .05;
 
-            noo::ObjectData nd;
-            nd.parent    = plot_root();
-            nd.transform = tf;
-            nd.text      = otd;
+            auto name = "Axis " + t;
 
+            noo::ObjectData nd;
+            nd.name       = name;
+            nd.parent     = plot_root();
+            nd.transform  = tf;
+            nd.definition = otd;
 
             return noo::create_object(m_doc, nd);
         };
@@ -305,6 +309,8 @@ auto make_set_domain_method(Plotty& p) {
 // Add points ==================================================================
 
 auto make_new_point_plot_method(Plotty& p) {
+
+
     noo::MethodData m;
     m.method_name            = "new_point_plot";
     m.documentation          = "Create a new point plot";
@@ -312,12 +318,15 @@ auto make_new_point_plot_method(Plotty& p) {
         { "[x ...]", "A list of point x values." },
         { "[y ...]", "A list of point y values." },
         { "[z ...]", "A list of point z values." },
-        { "[ c ]",
+        { "[c ...]",
           "An optional list of colors. Can be a 1D array of 3-stride floats "
-          "for RGB, or a "
-          "list of hex strings" },
-        { "[sx sy sz sx sy sz]",
-          "An optional list of 3D scales, laid out in a 1D array." }
+          "for RGB, or a list of hex strings. Can be null to skip" },
+        { "[sx sy sz ... ]",
+          "An optional list of 3D scales, laid out in a 1D array. Can be null "
+          "to skip." },
+        { "[str ...]",
+          "An optional list of string annotations. Must be the same length as "
+          "the list of x values." },
     };
     m.return_documentation = "An integer plot id";
 
@@ -327,10 +336,12 @@ auto make_new_point_plot_method(Plotty& p) {
                     noo::RealListArg    ys,
                     noo::RealListArg    zs,
                     ColorListArgument   cols,
-                    Scale3DListArgument scales) -> noo::AnyVar {
+                    Scale3DListArgument scales,
+                    noo::StringListArg  strings) -> noo::AnyVar {
         if (xs.list.size() != ys.list.size() or
             xs.list.size() != zs.list.size()) {
             throw noo::MethodException(
+                noo::ErrorCodes::INVALID_PARAMS,
                 "Coordinate arrays must be the same length");
         }
 
@@ -339,7 +350,8 @@ auto make_new_point_plot_method(Plotty& p) {
                                    ys.list.span(),
                                    zs.list.span(),
                                    std::move(cols.colors),
-                                   std::move(scales.scales));
+                                   std::move(scales.scales),
+                                   std::move(strings.list));
     });
 
     return noo::create_method(p.document().get(), m);
@@ -360,7 +372,8 @@ auto make_new_line_segment_plot_method(Plotty& p) {
         { "[ c ]",
           "A list of colors, one color for each point. Can be a 1D array of "
           "3-tuple floats for RGB, or a list of hex strings" },
-        { "[sx sy sx sy]", "A list of 2D scales, laid out in a 1D array." }
+        { "[sx sy sx sy ... ...]",
+          "A list of 2D scales, laid out in a 1D array." }
     };
     m.return_documentation = "An integer plot id";
 
@@ -373,6 +386,7 @@ auto make_new_line_segment_plot_method(Plotty& p) {
         if (xs.list.size() != ys.list.size() or
             xs.list.size() != zs.list.size()) {
             throw noo::MethodException(
+                noo::ErrorCodes::INVALID_PARAMS,
                 "Coordinate arrays must be the same length");
         }
 
@@ -394,10 +408,10 @@ auto make_new_image_plot_method(Plotty& p) {
     m.method_name            = "new_image_plot";
     m.documentation          = "Create a new image plane";
     m.argument_documentation = {
-        { "", "Bytes of the on-disk image." },
-        { "", "Point for the top-left of image plane" },
-        { "", "Point for the bottom-left of image plane" },
-        { "", "Point for the bottom-right of image plane" }
+        { "image", "Bytes of the on-disk image." },
+        { "[x y z]", "Point for the top-left of image plane" },
+        { "[x y z]", "Point for the bottom-left of image plane" },
+        { "[x y z]", "Point for the bottom-right of image plane" }
     };
     m.return_documentation = "An integer plot id";
 
@@ -503,7 +517,12 @@ Plotty::Plotty(uint16_t port) {
             this,
             &Plotty::on_domain_updated);
 
-    m_server = noo::create_server(port);
+    noo::ServerOptions options {
+        .port         = port,
+        .stdout_trace = true,
+    };
+
+    m_server = noo::create_server(options);
 
     qInfo() << "Creating server, listening on port" << port;
 
@@ -541,7 +560,12 @@ Plotty::Plotty(uint16_t port) {
     {
         noo::ObjectData nd;
 
-        Q_ASSERT(m_doc);
+        nd.name = "Plot Root";
+
+        nd.create_callbacks = [this](noo::ObjectT* t) {
+            return std::make_unique<PlottyRootCallbacks>(this, t);
+        };
+
 
         m_plot_root = noo::create_object(m_doc, nd);
     }
@@ -560,6 +584,8 @@ Plotty::Plotty(uint16_t port) {
         nd.transform = glm::translate(glm::mat4(1), p);
 
         nd.lights.push_back(nl.l);
+
+        nd.tags.emplace_back(noo::names::tag_noo_user_hidden);
 
         nl.o = noo::create_object(m_doc, nd);
     };

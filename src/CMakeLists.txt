@@ -24,4 +24,6 @@ PRIVATE
     glyphs.h
     datasource.cpp
     datasource.h
+    plottyrootcallbacks.cpp
+    plottyrootcallbacks.h
 )

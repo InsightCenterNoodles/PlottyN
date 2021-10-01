@@ -138,6 +138,9 @@ public:
 
     Plot* get_plot(size_t);
 
+    auto begin() { return m_plots.begin(); }
+    auto end() { return m_plots.end(); }
+
 private slots:
     void on_domain_updated();
     void on_domain_labels_updated();

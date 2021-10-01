@@ -41,6 +41,7 @@ static auto make_get_id_method(Plotty& host, noo::DocumentTPtr doc_ptr) {
 
         if (!obj)
             throw noo::MethodException(
+                noo::ErrorCodes::INVALID_REQUEST,
                 "Method should only be called on an object");
 
         auto const& plots = host.all_plots();
@@ -56,6 +57,12 @@ static auto make_get_id_method(Plotty& host, noo::DocumentTPtr doc_ptr) {
 }
 
 void Plot::domain_updated(Domain const&) { }
+
+void Plot::handle_selection(SpatialSelection const&) { }
+
+Plot::ProbeResult Plot::handle_probe(glm::vec3 const&) {
+    return {};
+}
 
 Plot::Plot(Plotty& host, int64_t id)
     : m_host(&host), m_doc(host.document()), m_plot_id(id) {

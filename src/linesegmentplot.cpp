@@ -67,9 +67,9 @@ static auto build_common_tube(noo::DocumentTPtr doc) {
     auto mesh = create_mesh(doc, mesh_data);
 
     noo::ObjectData object_data;
-    object_data.material  = mat_ptr;
+    object_data.definition =
+        noo::ObjectRenderableDefinition { .material = mat_ptr, .mesh = mesh };
     object_data.transform = glm::mat4(1);
-    object_data.mesh      = mesh;
 
     auto obj = create_object(doc, object_data);
 
@@ -108,7 +108,12 @@ void LineSegmentPlot::rebuild_instances() {
     }
 
     noo::ObjectUpdateData up;
-    up.instances = m_instances;
+    up.definition = noo::ObjectRenderableDefinition {
+        .material  = m_mat,
+        .mesh      = m_mesh,
+        .instances = m_instances,
+    };
+
 
     noo::update_object(m_obj, up);
 }

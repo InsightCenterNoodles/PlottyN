@@ -70,9 +70,10 @@ void ImagePlot::rebuild(Domain const& d) {
 
 
     noo::ObjectData object_data;
-    object_data.material  = m_image_mat;
+    object_data.definition =
+        noo::ObjectRenderableDefinition { .material = m_image_mat,
+                                          .mesh     = mesh };
     object_data.transform = glm::mat4(1);
-    object_data.mesh      = mesh;
 
     m_obj = create_object(m_doc, object_data);
 }
