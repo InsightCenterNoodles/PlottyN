@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12...3.16)
+cmake_minimum_required(VERSION 3.16)
 
 project(PlottyN VERSION 0.2 LANGUAGES CXX)
 
@@ -27,7 +27,7 @@ CPMAddPackage(
 CPMAddPackage(
     NAME noodles
     GITHUB_REPOSITORY InsightCenterNoodles/NoodlesPlusPlus
-    GIT_TAG 37a8b7ea0794ab0cb4d8854036bbf647a1c24182
+    GIT_TAG 4b50e237a03b6d854e4680fef2351f2d37f508bb
 )
 
 find_package(Qt6 COMPONENTS WebSockets Core Gui)
