@@ -11,8 +11,13 @@
 
 #include <glm/gtx/quaternion.hpp>
 
+#include <string>
+#include <string_view>
+
 #include <QColor>
 #include <QDebug>
+
+using namespace std::literals;
 
 struct ColorListArgument {
     std::vector<glm::vec3> colors;
@@ -270,11 +275,19 @@ auto make_set_domain_method(Plotty& p) {
     m.method_name            = "set_domain";
     m.documentation          = "Set table bounds";
     m.argument_documentation = {
-        { "[ real ] ", "3-tuple input bb min" },
-        { "[ real ] ", "3-tuple input bb max" },
-        { "[ real ] ", "3-tuple output bb min" },
-        { "[ real ] ", "3-tuple output bb max" },
-        { "[ string ] ", "3-tuple strings for axis names" },
+        { "input_min",
+          "3-tuple input bb min",
+          std::string(noo::names::hint_reallist) },
+        { "input_max",
+          "3-tuple input bb max",
+          std::string(noo::names::hint_reallist) },
+        { "output_min",
+          "3-tuple output bb min",
+          std::string(noo::names::hint_reallist) },
+        { "output_max",
+          "3-tuple output bb max",
+          std::string(noo::names::hint_reallist) },
+        { "axis_names", "3-tuple strings for axis names", "[text]" },
     };
     m.return_documentation = "An integer plot id";
 
@@ -315,18 +328,27 @@ auto make_new_point_plot_method(Plotty& p) {
     m.method_name            = "new_point_plot";
     m.documentation          = "Create a new point plot";
     m.argument_documentation = {
-        { "[x ...]", "A list of point x values." },
-        { "[y ...]", "A list of point y values." },
-        { "[z ...]", "A list of point z values." },
-        { "[c ...]",
+        { "xvals",
+          "A list of point x values.",
+          std::string(noo::names::hint_reallist) },
+        { "yvals",
+          "A list of point y values.",
+          std::string(noo::names::hint_reallist) },
+        { "zvals",
+          "A list of point z values.",
+          std::string(noo::names::hint_reallist) },
+        { "colors",
           "An optional list of colors. Can be a 1D array of 3-stride floats "
-          "for RGB, or a list of hex strings. Can be null to skip" },
-        { "[sx sy sz ... ]",
+          "for RGB, or a list of hex strings. Can be null to skip",
+          "[string] | reallist" },
+        { "scales",
           "An optional list of 3D scales, laid out in a 1D array. Can be null "
-          "to skip." },
-        { "[str ...]",
+          "to skip.",
+          "reallist" },
+        { "annos",
           "An optional list of string annotations. Must be the same length as "
-          "the list of x values." },
+          "the list of x values.",
+          "[string]" },
     };
     m.return_documentation = "An integer plot id";
 
@@ -366,14 +388,14 @@ auto make_new_line_segment_plot_method(Plotty& p) {
         "Create a new line segment plot. Points given are connected in pairs "
         "to create disconnected lines: a <-> b,  c <-> d";
     m.argument_documentation = {
-        { "[x ...]", "A list of point x values." },
-        { "[y ...]", "A list of point y values." },
-        { "[z ...]", "A list of point z values." },
-        { "[ c ]",
+        { "xvals", "A list of point x values.", "reallist" },
+        { "yvals", "A list of point y values.", "reallist" },
+        { "zvals", "A list of point z values.", "reallist" },
+        { "colors",
           "A list of colors, one color for each point. Can be a 1D array of "
-          "3-tuple floats for RGB, or a list of hex strings" },
-        { "[sx sy sx sy ... ...]",
-          "A list of 2D scales, laid out in a 1D array." }
+          "3-tuple floats for RGB, or a list of hex strings",
+          "[string] | reallist" },
+        { "scales", "A list of 2D scales, laid out in a 1D array.", "reallist" }
     };
     m.return_documentation = "An integer plot id";
 
@@ -408,10 +430,14 @@ auto make_new_image_plot_method(Plotty& p) {
     m.method_name            = "new_image_plot";
     m.documentation          = "Create a new image plane";
     m.argument_documentation = {
-        { "image", "Bytes of the on-disk image." },
-        { "[x y z]", "Point for the top-left of image plane" },
-        { "[x y z]", "Point for the bottom-left of image plane" },
-        { "[x y z]", "Point for the bottom-right of image plane" }
+        { "image", "Bytes of the on-disk image.", "data" },
+        { "top_left", "Point for the top-left of image plane", "reallist" },
+        { "bottom_left",
+          "Point for the bottom-left of image plane",
+          "reallist" },
+        { "bottom_right",
+          "Point for the bottom-right of image plane",
+          "reallist" }
     };
     m.return_documentation = "An integer plot id";
 
@@ -518,8 +544,7 @@ Plotty::Plotty(uint16_t port) {
             &Plotty::on_domain_updated);
 
     noo::ServerOptions options {
-        .port         = port,
-        .stdout_trace = true,
+        .port = port,
     };
 
     m_server = noo::create_server(options);
@@ -576,6 +601,8 @@ Plotty::Plotty(uint16_t port) {
         noo::LightData light_data;
         light_data.color     = { color.redF(), color.greenF(), color.blueF() };
         light_data.intensity = i;
+        light_data.type      = noo::LightType::SUN;
+        light_data.spatial   = glm::vec4(-p, 0);
 
         nl.l = noo::create_light(m_doc, light_data);
 
