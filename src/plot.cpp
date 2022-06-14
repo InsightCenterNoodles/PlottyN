@@ -36,7 +36,7 @@ static auto make_get_id_method(Plotty& host, noo::DocumentTPtr doc_ptr) {
     method_data.return_documentation =
         "The integer id of the plot. -1 if there is none.";
 
-    method_data.set_code([&host](noo::MethodContext const& ctx) -> noo::AnyVar {
+    method_data.set_code([&host](noo::MethodContext const& ctx) -> QCborValue {
         auto obj = ctx.get_object();
 
         if (!obj)
@@ -47,7 +47,7 @@ static auto make_get_id_method(Plotty& host, noo::DocumentTPtr doc_ptr) {
         auto const& plots = host.all_plots();
 
         for (auto const& [k, v] : plots) {
-            if (v->object() == obj) { return k; }
+            if (v->object() == obj) { return qint64(k); }
         }
 
         return -1;

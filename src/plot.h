@@ -83,7 +83,7 @@ public:
     virtual void handle_selection(SpatialSelection const&);
 
     struct ProbeResult {
-        std::string              text;
+        QString                  text;
         std::optional<glm::vec3> place;
     };
 

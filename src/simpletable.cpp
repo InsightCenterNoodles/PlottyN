@@ -212,26 +212,25 @@ std::vector<std::string> SimpleTable::get_all_selections() {
 
 #endif
 
-LoadTableArg::LoadTableArg(noo::AnyVarRef var) {
-    if (var.has_list()) {
-        auto l = var.to_vector();
+LoadTableArg::LoadTableArg(QCborValue var) {
+    if (var.isArray()) {
+        auto l = var.toArray();
 
         auto ls = l.size();
 
-        for (size_t i = 0; i < ls; i++) {
+        for (int i = 0; i < ls; i++) {
             cols.emplace_back(l[i]);
         }
-    } else if (auto m = var.to_map(); m.size()) {
+    } else if (auto m = var.toMap(); m.size()) {
 
         for (auto const& [k, v] : m) {
-            cols.emplace_back(k, v.coerce_real_list().span());
+            cols.emplace_back(k.toString(), noo::coerce_to_real_list(v));
         }
     }
 }
 
-SimpleTable::SimpleTable(std::string_view               _n,
-                         std::vector<LoadTableColumn>&& cols)
-    : noo::TableSource(nullptr), name(_n) {
+SimpleTable::SimpleTable(QString n, std::vector<LoadTableColumn>&& cols)
+    : noo::TableSource(nullptr), name(n) {
 
     if (cols.empty()) return;
 
@@ -239,7 +238,7 @@ SimpleTable::SimpleTable(std::string_view               _n,
         auto& new_a = m_columns.emplace_back();
 
         if (a.reals.size()) {
-            new_a = std::move(a.reals);
+            new_a = a.reals;
         } else {
             new_a = std::move(a.strings);
         }
@@ -257,7 +256,7 @@ SimpleTable::SimpleTable(std::string_view               _n,
 }
 
 
-void SimpleTable::modify_selection(std::string_view   slot,
+void SimpleTable::modify_selection(QString            slot,
                                    std::span<int64_t> keys,
                                    int                select_action) {
 
@@ -267,32 +266,31 @@ void SimpleTable::modify_selection(std::string_view   slot,
 
     // is there a current selection with that slot?
 
-    noo::SelectionRef ref;
+    noo::Selection ref;
+    ref.name = slot;
 
-    auto slot_name = std::string(slot);
-
-    auto iter = m_selections.find(slot_name);
+    auto iter = m_selections.find(slot);
 
     if (iter == m_selections.end()) {
         // add if not deselecting
 
         if (select_action < 0) return;
 
-        ref.rows = keys;
+        ref.rows = QVector<int64_t>(keys.begin(), keys.end());
 
-        ask_update_selection(slot, ref);
+        ask_update_selection(ref);
 
         return;
     }
 
-    auto const& current_selection = iter->second;
+    auto const& current_selection = iter.value();
 
     // slot exists
 
     if (select_action == 0) {
-        ref.rows = keys;
+        ref.rows = QVector<int64_t>(keys.begin(), keys.end());
 
-        ask_update_selection(slot, ref);
+        ask_update_selection(ref);
 
         return;
     }
@@ -301,7 +299,7 @@ void SimpleTable::modify_selection(std::string_view   slot,
         // diff
 
         // current list
-        std::vector<int64_t> new_list;
+        QVector<int64_t> new_list;
 
         std::unordered_set<int64_t> to_del_list;
         to_del_list.insert(keys.begin(), keys.end());
@@ -314,7 +312,7 @@ void SimpleTable::modify_selection(std::string_view   slot,
 
         ref.rows = new_list;
 
-        ask_update_selection(slot, ref);
+        ask_update_selection(ref);
 
         return;
     }
@@ -322,11 +320,9 @@ void SimpleTable::modify_selection(std::string_view   slot,
     if (select_action > 0) {
         // add
 
-        std::vector<int64_t> new_list;
-        new_list.insert(new_list.end(), keys.begin(), keys.end());
-        new_list.insert(new_list.end(),
-                        current_selection.rows.begin(),
-                        current_selection.rows.end());
+        QVector<int64_t> new_list;
+        new_list << QVector<int64_t>(keys.begin(), keys.end());
+        new_list << current_selection.rows;
 
         std::sort(new_list.begin(), new_list.end());
         auto last = std::unique(new_list.begin(), new_list.end());
@@ -335,7 +331,7 @@ void SimpleTable::modify_selection(std::string_view   slot,
 
         ref.rows = new_list;
 
-        ask_update_selection(slot, ref);
+        ask_update_selection(ref);
 
         return;
     }

@@ -23,14 +23,14 @@ protected:
     void select(SelectHull const&);
 
 public:
-    PointPlot(Plotty&                    host,
-              int64_t                    id,
-              std::span<double const>    px,
-              std::span<double const>    py,
-              std::span<double const>    pz,
-              std::vector<glm::vec3>&&   colors,
-              std::vector<glm::vec3>&&   scales,
-              std::vector<std::string>&& strings);
+    PointPlot(Plotty&                  host,
+              int64_t                  id,
+              std::span<double const>  px,
+              std::span<double const>  py,
+              std::span<double const>  pz,
+              std::vector<glm::vec3>&& colors,
+              std::vector<glm::vec3>&& scales,
+              QStringList&&            strings);
     ~PointPlot() override;
 
     void domain_updated(Domain const&) override;

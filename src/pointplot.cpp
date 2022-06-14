@@ -32,14 +32,8 @@ void PointPlot::rebuild_instances() {
         },
         d);
 
-    noo::ObjectUpdateData up;
-    up.definition =
-        noo::ObjectRenderableDefinition { .material = m_mat,
-                                          .mesh     = m_mesh,
-                                          .instances =
-                                              m_scatter_instances.instances() };
-
-    noo::update_object(m_obj, up);
+    update_instances(
+        m_scatter_instances.instances(), m_host->document(), m_obj, m_mesh);
 
     auto* sd = m_host->domain();
 
@@ -49,7 +43,7 @@ void PointPlot::rebuild_instances() {
     }
 }
 
-const std::string_view brush_selection_name = "brushed";
+const QString brush_selection_name = "brushed";
 
 template <class Function>
 std::vector<int64_t> build_keys(DataSource&        source,
@@ -169,14 +163,14 @@ void PointPlot::select(SelectHull const& sel) {
         brush_selection_name, keys, sel.select);
 }
 
-PointPlot::PointPlot(Plotty&                    host,
-                     int64_t                    id,
-                     std::span<double const>    px,
-                     std::span<double const>    py,
-                     std::span<double const>    pz,
-                     std::vector<glm::vec3>&&   colors,
-                     std::vector<glm::vec3>&&   scales,
-                     std::vector<std::string>&& strings)
+PointPlot::PointPlot(Plotty&                  host,
+                     int64_t                  id,
+                     std::span<double const>  px,
+                     std::span<double const>  py,
+                     std::span<double const>  pz,
+                     std::vector<glm::vec3>&& colors,
+                     std::vector<glm::vec3>&& scales,
+                     QStringList&&            strings)
     : Plot(host, id) {
 
     {
@@ -249,12 +243,12 @@ PointPlot::PointPlot(Plotty&                    host,
         }
 
         auto tbl = std::make_shared<SimpleTable>(
-            "Point Table " + std::to_string(id), std::move(columns));
+            QString("Point Table %1").arg(id), std::move(columns));
 
         m_data_source = DataSource(m_doc, tbl);
     }
 
-    std::string str = QString("Spheres %1").arg(m_plot_id).toStdString();
+    auto str = QString("Spheres %1").arg(m_plot_id);
 
     auto [pmat, pmesh, pobj] = build_common_sphere(str, m_doc);
 
@@ -321,7 +315,7 @@ Plot::ProbeResult PointPlot::handle_probe(glm::vec3 const& probe_point) {
 
     if (best_index < 0) return {};
 
-    std::string text = "Key: " + std::to_string(map[best_index]);
+    QString text = QString("Key: %1").arg(map[best_index]);
 
     { // if there is an annotation field, use it.
         auto const& cols = m_data_source.table().get_columns();

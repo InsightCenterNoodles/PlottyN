@@ -7,13 +7,13 @@
 
 #include <sstream>
 
-static noo::ObjectCallbacks::EnableCallback flags = {
+static noo::EntityCallbacks::EnableCallback flags = {
     .selection = true,
     .probing   = true,
 };
 
 PlottyRootCallbacks::PlottyRootCallbacks(Plotty* plotty, noo::ObjectT* t)
-    : noo::ObjectCallbacks(t, flags), m_plotty(plotty) {
+    : noo::EntityCallbacks(t, flags), m_plotty(plotty) {
     qDebug() << Q_FUNC_INFO << this;
 }
 
@@ -64,10 +64,10 @@ void PlottyRootCallbacks::select_hull(std::span<glm::vec3 const> hull,
 }
 
 
-std::pair<std::string, glm::vec3> PlottyRootCallbacks::probe_at(glm::vec3 p) {
+std::pair<QString, glm::vec3> PlottyRootCallbacks::probe_at(glm::vec3 p) {
     // point is in the physical domain, not the data domain.
 
-    std::stringstream ss;
+    QString ss;
 
     glm::vec3 place;
     int       place_count = 0;
@@ -76,9 +76,9 @@ std::pair<std::string, glm::vec3> PlottyRootCallbacks::probe_at(glm::vec3 p) {
 
         auto result = v->handle_probe(p);
 
-        if (result.text.empty()) continue;
+        if (result.text.isEmpty()) continue;
 
-        ss << "Plt " << k << ": " << result.text << "\n";
+        ss += QString("Plt %1: %2\n").arg(k).arg(result.text);
 
         if (result.place) {
             if (place_count > 0) {
@@ -91,5 +91,5 @@ std::pair<std::string, glm::vec3> PlottyRootCallbacks::probe_at(glm::vec3 p) {
         }
     }
 
-    return { ss.str(), place };
+    return { ss, place };
 }

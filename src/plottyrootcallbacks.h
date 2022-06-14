@@ -5,7 +5,7 @@
 
 class Plotty;
 
-class PlottyRootCallbacks : public noo::ObjectCallbacks {
+class PlottyRootCallbacks : public noo::EntityCallbacks {
     Plotty* m_plotty;
 
 public:
@@ -20,7 +20,7 @@ public:
                      std::span<int64_t const>   index,
                      SelAction                  select) override;
 
-    std::pair<std::string, glm::vec3> probe_at(glm::vec3) override;
+    std::pair<QString, glm::vec3> probe_at(glm::vec3) override;
 };
 
 #endif // PLOTTYROOTCALLBACKS_H

@@ -30,9 +30,9 @@ class SharedDomain : public QObject {
     bool   m_domain_auto = true;
 
 
-    std::string m_x_axis_title = "x";
-    std::string m_y_axis_title = "y";
-    std::string m_z_axis_title = "z";
+    QString m_x_axis_title = "x";
+    QString m_y_axis_title = "y";
+    QString m_z_axis_title = "z";
 
 public:
     explicit SharedDomain(QObject* p);
@@ -46,13 +46,13 @@ public:
 
     void ask_update_input_bounds(glm::vec3, glm::vec3);
 
-    void set_axis_labels(std::string x_axis_title,
-                         std::string y_axis_title,
-                         std::string z_axis_title);
+    void set_axis_labels(QString x_axis_title,
+                         QString y_axis_title,
+                         QString z_axis_title);
 
-    std::string x_axis_title() const;
-    std::string y_axis_title() const;
-    std::string z_axis_title() const;
+    QString x_axis_title() const;
+    QString y_axis_title() const;
+    QString z_axis_title() const;
 
 signals:
     void domain_updated();

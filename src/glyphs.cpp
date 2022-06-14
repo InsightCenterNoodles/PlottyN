@@ -68,20 +68,16 @@ static std::vector<glm::u16vec3> const sphere_index_info = {
     { 13, 0, 16 },  { 12, 14, 2 },  { 12, 13, 14 }, { 13, 1, 14 },
 };
 
-
-GlyphInfo build_common_sphere(std::string_view  name,
-                              noo::DocumentTPtr doc,
-                              noo::TableTPtr    table) {
+GlyphInfo
+build_common_sphere(QString name, noo::DocumentTPtr doc, noo::TableTPtr table) {
     noo::MaterialData mat;
-    mat.color        = { 1, 1, 1, 1 };
-    mat.metallic     = 0;
-    mat.roughness    = 1;
-    mat.use_blending = false;
+    mat.pbr_info.base_color = Qt::white;
+    mat.pbr_info.metallic   = 0;
 
     auto mat_ptr = create_material(doc, mat);
 
-    noo::BufferMeshDataRef mesh_data;
-
+    noo::MeshSource mesh_data;
+    mesh_data.material  = mat_ptr;
     mesh_data.positions = sphere_vertex_info;
     mesh_data.normals   = sphere_normal_info;
     mesh_data.triangles = sphere_index_info;
@@ -89,8 +85,7 @@ GlyphInfo build_common_sphere(std::string_view  name,
     auto mesh = create_mesh(doc, mesh_data);
 
     noo::ObjectRenderableDefinition rdef {
-        .material = mat_ptr,
-        .mesh     = mesh,
+        .mesh = mesh,
     };
 
     noo::ObjectData object_data;
@@ -98,7 +93,7 @@ GlyphInfo build_common_sphere(std::string_view  name,
     object_data.definition = rdef;
     object_data.transform  = glm::mat4(1);
 
-    if (table) { object_data.tables.push_back(table); }
+    if (table) { object_data.tables = QVector<noo::TableTPtr>() << table; }
 
     auto obj = create_object(doc, object_data);
 

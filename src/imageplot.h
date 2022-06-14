@@ -5,7 +5,7 @@
 
 class ImagePlot : public Plot {
 
-    std::vector<std::byte> m_image_data;
+    QImage m_image_data;
 
     glm::vec3 m_top_left;
     glm::vec3 m_bottom_left;
@@ -18,12 +18,12 @@ class ImagePlot : public Plot {
     void rebuild(Domain const&);
 
 public:
-    ImagePlot(Plotty&                    host,
-              int64_t                    id,
-              std::span<std::byte const> image_data,
-              glm::vec3                  top_left,
-              glm::vec3                  bottom_left,
-              glm::vec3                  bottom_right);
+    ImagePlot(Plotty&    host,
+              int64_t    id,
+              QByteArray image_data,
+              glm::vec3  top_left,
+              glm::vec3  bottom_left,
+              glm::vec3  bottom_right);
 
     ~ImagePlot() override;
 

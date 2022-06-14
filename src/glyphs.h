@@ -9,7 +9,7 @@ struct GlyphInfo {
     noo::ObjectTPtr   obj;
 };
 
-GlyphInfo build_common_sphere(std::string_view  name,
+GlyphInfo build_common_sphere(QString           name,
                               noo::DocumentTPtr doc,
                               noo::TableTPtr    table = {});
 

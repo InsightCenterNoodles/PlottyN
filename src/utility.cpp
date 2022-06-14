@@ -31,3 +31,36 @@ std::pair<glm::vec3, glm::vec3> min_max_of(std::span<double const> x,
 
     return { lmin, lmax };
 }
+
+void update_instances(std::span<glm::mat4 const> instances,
+                      noo::DocumentTPtr          doc,
+                      noo::ObjectTPtr            object,
+                      noo::MeshTPtr              mesh) {
+    auto src_bytes = (const char*)instances.data();
+
+    QByteArray array(src_bytes, instances.size_bytes());
+
+    auto new_buffer = noo::create_buffer(
+        doc,
+        noo::BufferData {
+            .source = noo::BufferInlineSource { .data = array },
+        });
+
+    auto view = noo::create_buffer_view(doc,
+                                        noo::BufferViewData {
+                                            .source_buffer = new_buffer,
+                                            .type   = noo::ViewType::UNKNOWN,
+                                            .offset = 0,
+                                            .length = (uint64_t)array.size(),
+                                        });
+
+    noo::ObjectUpdateData update { .definition =
+                                       noo::ObjectRenderableDefinition {
+                                           .mesh      = mesh,
+                                           .instances = noo::InstanceInfo {
+                                               .view   = view,
+                                               .stride = 0,
+                                           } } };
+
+    noo::update_object(object, update);
+}

@@ -6,47 +6,43 @@
 #include <QObject>
 
 struct LoadTableColumn {
-    std::string              name;
-    std::vector<double>      reals;
-    std::vector<std::string> strings;
+    QString         name;
+    QVector<double> reals;
+    QStringList     strings;
 
     LoadTableColumn() = default;
 
-    LoadTableColumn(std::string s, std::span<double const> r)
+    LoadTableColumn(QString s, std::span<double const> r)
         : name(std::move(s)), reals(r.begin(), r.end()) { }
 
-    LoadTableColumn(std::string s, std::vector<double>&& r)
+    LoadTableColumn(QString s, QVector<double>&& r)
         : name(std::move(s)), reals(std::move(r)) { }
 
-    LoadTableColumn(std::string s, std::vector<std::string>&& r)
+    LoadTableColumn(QString s, QStringList&& r)
         : name(std::move(s)), strings(std::move(r)) { }
 
-    LoadTableColumn(noo::AnyVarRef var) {
-        auto obj = var.to_map();
+    LoadTableColumn(QCborValue var) {
+        auto obj = var.toMap();
 
-        name = std::string(obj["name"].to_string());
+        name = obj[QStringLiteral("name")].toString();
 
-        auto ls = obj["data"].coerce_real_list();
-
-        reals = std::vector<double>(ls.begin(), ls.end());
+        reals = noo::coerce_to_real_list(obj[QStringLiteral("data")]);
     }
 };
 
 struct LoadTableArg {
     std::vector<LoadTableColumn> cols;
 
-    LoadTableArg(noo::AnyVarRef var);
+    LoadTableArg(QCborValue var);
 };
 
 class SimpleTable : public noo::TableSource {
 public:
-    std::string name;
+    QString name;
 
-    SimpleTable(std::string_view _n, std::vector<LoadTableColumn>&& cols);
+    SimpleTable(QString n, std::vector<LoadTableColumn>&& cols);
 
-    void modify_selection(std::string_view,
-                          std::span<int64_t> keys,
-                          int                select_action);
+    void modify_selection(QString, std::span<int64_t> keys, int select_action);
 };
 
 #endif // SIMPLETABLE_H

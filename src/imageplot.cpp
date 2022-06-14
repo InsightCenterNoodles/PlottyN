@@ -8,16 +8,18 @@ void ImagePlot::rebuild(Domain const& d) {
     auto o = -(m_bottom_left - center);
 
     if (!m_image_texture) {
-        m_image_texture = noo::create_texture_from_file(m_doc, m_image_data);
+        m_image_texture = noo::create_texture(m_doc, m_image_data);
     }
 
     if (!m_image_mat) {
         noo::MaterialData mat;
 
-        mat.color     = { 1, 1, 1, 1 };
-        mat.metallic  = 0;
-        mat.roughness = 1;
-        mat.texture   = m_image_texture;
+        mat.pbr_info.base_color = Qt::white;
+        mat.pbr_info.base_color_texture =
+            noo::TextureRef { .source = m_image_texture };
+
+
+        mat.pbr_info.metallic = 0;
 
         m_image_mat = noo::create_material(m_doc, mat);
     }
@@ -48,44 +50,36 @@ void ImagePlot::rebuild(Domain const& d) {
             glm::u16vec3 { 3, 1, 2 },
         };
 
-        noo::BufferMeshDataRef ref;
+        noo::MeshSource ref;
 
         ref.positions = positions;
         ref.normals   = normals;
         ref.triangles = index;
 
-        std::vector<std::byte> mesh_data;
 
-        auto result = noo::pack_mesh_to_vector(ref, mesh_data);
+        auto key = QStringLiteral("mesh");
 
-        noo::BufferCopySource buffer_data;
-        buffer_data.to_copy = mesh_data;
+        auto packed = noo::create_directory(m_doc, { { key, ref } });
 
-        auto buffer_ptr = noo::create_buffer(m_doc, buffer_data);
-
-        noo::MeshData noo_mesh_data(result, buffer_ptr);
-
-        mesh = create_mesh(m_doc, noo_mesh_data);
+        mesh = std::get<noo::MeshTPtr>(packed[key]);
     }
 
 
     noo::ObjectData object_data;
-    object_data.definition =
-        noo::ObjectRenderableDefinition { .material = m_image_mat,
-                                          .mesh     = mesh };
-    object_data.transform = glm::mat4(1);
+    object_data.definition = noo::ObjectRenderableDefinition { .mesh = mesh };
+    object_data.transform  = glm::mat4(1);
 
     m_obj = create_object(m_doc, object_data);
 }
 
-ImagePlot::ImagePlot(Plotty&                    host,
-                     int64_t                    id,
-                     std::span<std::byte const> image_data,
-                     glm::vec3                  top_left,
-                     glm::vec3                  bottom_left,
-                     glm::vec3                  bottom_right)
+ImagePlot::ImagePlot(Plotty&    host,
+                     int64_t    id,
+                     QByteArray image_data,
+                     glm::vec3  top_left,
+                     glm::vec3  bottom_left,
+                     glm::vec3  bottom_right)
     : Plot(host, id),
-      m_image_data(image_data.begin(), image_data.end()),
+      m_image_data(image_data),
       m_top_left(top_left),
       m_bottom_left(bottom_left),
       m_bottom_right(bottom_right) {
