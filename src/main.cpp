@@ -10,7 +10,7 @@ int main(int argc, char* argv[]) {
     auto app = QCoreApplication(argc, argv);
 
     QCoreApplication::setApplicationName("PlottyN");
-    QCoreApplication::setApplicationVersion("0.1");
+    QCoreApplication::setApplicationVersion("0.3");
 
     QCommandLineParser parser;
     parser.setApplicationDescription("3D Plotting Tool");
