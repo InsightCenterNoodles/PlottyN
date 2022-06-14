@@ -22,13 +22,34 @@ U lerp(T x, T const& x0, T const& x1, U const& y0, U const& y1) {
     return y0 + (y1 - y0) * ((x - x0) / (x1 - x0));
 }
 
+struct SelectRegion {
+    glm::vec3 min, max;
+    int       select;
+};
 
-// template <size_t N, class T>
-// auto make_array(T value) {
-//    std::array<T, N> ret;
-//    ret.fill(value);
-//    return ret;
-//}
+struct SelectSphere {
+    glm::vec3 point;
+    float     radius;
+    int       select;
+};
+
+struct SelectPlane {
+    glm::vec3 point;
+    glm::vec3 normal;
+    int       select;
+};
+
+struct SelectHull {
+    std::span<glm::vec3 const> points;
+    std::span<int64_t const>   index;
+    int                        select;
+};
+
+struct SpatialSelection
+    : std::variant<SelectRegion, SelectSphere, SelectPlane, SelectHull> {
+
+    using variant::variant;
+};
 
 struct Domain;
 
@@ -58,6 +79,15 @@ public:
     ~Plot();
 
     noo::ObjectTPtr const& object();
+
+    virtual void handle_selection(SpatialSelection const&);
+
+    struct ProbeResult {
+        QString                  text;
+        std::optional<glm::vec3> place;
+    };
+
+    virtual ProbeResult handle_probe(glm::vec3 const&);
 };
 
 

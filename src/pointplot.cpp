@@ -2,6 +2,10 @@
 
 #include "glyphs.h"
 #include "utility.h"
+#include "variant_tools.h"
+
+#include <glm/gtx/intersect.hpp>
+#include <glm/gtx/norm.hpp>
 
 #include <QDebug>
 
@@ -28,10 +32,8 @@ void PointPlot::rebuild_instances() {
         },
         d);
 
-    noo::ObjectUpdateData up;
-    up.instances = m_scatter_instances.instances();
-
-    noo::update_object(m_obj, up);
+    update_instances(
+        m_scatter_instances.instances(), m_host->document(), m_obj, m_mesh);
 
     auto* sd = m_host->domain();
 
@@ -41,13 +43,134 @@ void PointPlot::rebuild_instances() {
     }
 }
 
+const QString brush_selection_name = "brushed";
+
+template <class Function>
+std::vector<int64_t> build_keys(DataSource&        source,
+                                ScatterCore const& instances,
+                                Function&&         function) {
+    std::vector<int64_t> keys;
+
+    auto const& map = source.table().get_row_to_key_map();
+
+    auto const& inst = instances.instances();
+
+    for (size_t i = 0; i < inst.size(); i++) {
+        auto const& m = inst[i];
+        auto        p = glm::vec3(m[0]);
+
+        if (function(p)) { keys.push_back(map[i]); }
+    }
+
+    return keys;
+}
+
+void PointPlot::select(SelectRegion const& sel) {
+
+    std::vector<int64_t> keys = build_keys(
+        m_data_source, m_scatter_instances, [&sel](glm::vec3 const& p) {
+            if (!glm::all(glm::greaterThanEqual(p, sel.min))) return false;
+            if (!glm::all(glm::lessThanEqual(p, sel.max))) return false;
+            return true;
+        });
+
+    m_data_source.table().modify_selection(
+        brush_selection_name, keys, sel.select);
+}
+
+void PointPlot::select(SelectSphere const& sel) {
+
+    auto radius_sq = sel.radius * sel.radius;
+
+    auto test = [&sel, radius_sq](glm::vec3 const& p) {
+        auto to_p = p - sel.point;
+        auto d    = glm::dot(to_p, to_p);
+        return radius_sq < d;
+    };
+
+    std::vector<int64_t> keys =
+        build_keys(m_data_source, m_scatter_instances, test);
+
+    m_data_source.table().modify_selection(
+        brush_selection_name, keys, sel.select);
+}
+
+void PointPlot::select(SelectPlane const& sel) {
+    auto n = glm::normalize(sel.normal);
+
+    auto test = [&sel, n](glm::vec3 const& p) {
+        auto to_p = glm::normalize(p - sel.point);
+        auto d    = glm::dot(to_p, n);
+        return d > 0;
+    };
+
+    std::vector<int64_t> keys =
+        build_keys(m_data_source, m_scatter_instances, test);
+
+    m_data_source.table().modify_selection(
+        brush_selection_name, keys, sel.select);
+}
+
+static bool is_point_in(glm::vec3 const&           p,
+                        std::span<glm::vec3 const> hull,
+                        std::span<int64_t const>   index) {
+
+    // pick a point
+
+    glm::vec3 far_p = p + glm::vec3(0, 0, 1000000);
+
+    auto dir = glm::normalize(far_p - p);
+
+    // for each triangle, count intersections
+
+    int isect_count = 0;
+
+    for (size_t i = 0; i < index.size(); i += 3) {
+        auto const& a = hull[i];
+        auto const& b = hull[i + 1];
+        auto const& c = hull[i + 2];
+
+        // if all the points are 'behind' the point, we can skip any testing
+
+        {
+            auto da = glm::dot(dir, a - p);
+            auto db = glm::dot(dir, b - p);
+            auto dc = glm::dot(dir, c - p);
+
+            if (da < 0 and db < 0 and dc < 0) continue;
+        }
+
+        glm::vec2 bary_coords;
+        float     dist;
+        isect_count +=
+            glm::intersectRayTriangle(p, dir, a, b, c, bary_coords, dist);
+    }
+
+
+    // if even, outside, if odd, inside.
+    return isect_count % 2 != 0;
+}
+
+void PointPlot::select(SelectHull const& sel) {
+    auto test = [&sel](glm::vec3 const& p) {
+        return is_point_in(p, sel.points, sel.index);
+    };
+
+    std::vector<int64_t> keys =
+        build_keys(m_data_source, m_scatter_instances, test);
+
+    m_data_source.table().modify_selection(
+        brush_selection_name, keys, sel.select);
+}
+
 PointPlot::PointPlot(Plotty&                  host,
                      int64_t                  id,
                      std::span<double const>  px,
                      std::span<double const>  py,
                      std::span<double const>  pz,
                      std::vector<glm::vec3>&& colors,
-                     std::vector<glm::vec3>&& scales)
+                     std::vector<glm::vec3>&& scales,
+                     QStringList&&            strings)
     : Plot(host, id) {
 
     {
@@ -115,13 +238,19 @@ PointPlot::PointPlot(Plotty&                  host,
             m_column_mapping[SZ] = next_column++;
         }
 
+        if (strings.size()) {
+            columns.emplace_back("annotation", std::move(strings));
+        }
+
         auto tbl = std::make_shared<SimpleTable>(
-            "Point Table " + std::to_string(id), std::move(columns));
+            QString("Point Table %1").arg(id), std::move(columns));
 
         m_data_source = DataSource(m_doc, tbl);
     }
 
-    auto [pmat, pmesh, pobj] = build_common_sphere(m_doc);
+    auto str = QString("Spheres %1").arg(m_plot_id);
+
+    auto [pmat, pmesh, pobj] = build_common_sphere(str, m_doc);
 
     m_mat  = pmat;
     m_mesh = pmesh;
@@ -147,50 +276,69 @@ PointPlot::PointPlot(Plotty&                  host,
 
 PointPlot::~PointPlot() { }
 
-// void PointPlot::append(std::span<glm::vec3> points,
-//                       std::span<glm::vec3> colors,
-//                       std::span<glm::vec3> scales) {
-
-//    if (points.empty()) return;
-
-
-//    {
-//        auto [l, h] = min_max_of(points);
-//        m_host->domain()->ask_update_input_bounds(l, h);
-//    }
-
-//    m_points.insert(m_points.end(), points.begin(), points.end());
-//    m_colors.insert(m_colors.end(), colors.begin(), colors.end());
-//    m_scales.insert(m_scales.end(), scales.begin(), scales.end());
-
-//    rebuild_instances();
-//}
-
-// inline void replace(std::span<glm::vec3> source, std::vector<glm::vec3>&
-// dest) {
-//    dest.resize(source.size());
-
-//    std::copy(source.begin(), source.end(), dest.begin());
-//}
-
-// void PointPlot::replace_with(std::span<glm::vec3> points,
-//                             std::span<glm::vec3> colors,
-//                             std::span<glm::vec3> scales) {
-
-//    replace(points, m_points);
-//    replace(colors, m_colors);
-//    replace(scales, m_scales);
-
-//    if (m_points.size()) {
-//        auto [l, h] = min_max_of(m_points);
-//        m_host->domain()->ask_update_input_bounds(l, h);
-//    }
-
-//    rebuild_instances();
-//}
 
 void PointPlot::domain_updated(Domain const&) {
     rebuild_instances();
+}
+
+
+void PointPlot::handle_selection(SpatialSelection const& sel) {
+    std::visit([this](auto const& a) { this->select(a); }, sel);
+}
+
+Plot::ProbeResult PointPlot::handle_probe(glm::vec3 const& probe_point) {
+    float const cutoff_dist = .15;
+
+    auto const cutoff_dist_sq = cutoff_dist * cutoff_dist;
+
+    auto const& map = m_data_source.table().get_row_to_key_map();
+
+    auto const& inst = m_scatter_instances.instances();
+
+    int64_t   best_index   = -1;
+    float     best_dist_sq = cutoff_dist_sq; // others must be less than this...
+    glm::vec3 best_point;
+
+    for (size_t i = 0; i < inst.size(); i++) {
+        auto const& m = inst[i];
+        auto        p = glm::vec3(m[0]);
+
+        auto dist_sq = glm::distance2(p, probe_point);
+
+        if (best_dist_sq <= dist_sq) continue;
+
+        best_index   = i;
+        best_dist_sq = dist_sq;
+        best_point   = p;
+    }
+
+
+    if (best_index < 0) return {};
+
+    QString text = QString("Key: %1").arg(map[best_index]);
+
+    { // if there is an annotation field, use it.
+        auto const& cols = m_data_source.table().get_columns();
+
+        for (auto const& c : cols) {
+            if (c.name != "annotation") continue;
+
+            auto strings = c.as_string();
+
+            if (strings.empty()) continue;
+
+            auto anno_string = strings[best_index % strings.size()];
+
+            text += ": " + anno_string;
+
+            break;
+        }
+    }
+
+    return {
+        .text  = std::move(text),
+        .place = best_point,
+    };
 }
 
 void PointPlot::on_table_updated() {

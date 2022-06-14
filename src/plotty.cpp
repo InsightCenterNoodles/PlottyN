@@ -2,6 +2,7 @@
 
 #include "imageplot.h"
 #include "linesegmentplot.h"
+#include "plottyrootcallbacks.h"
 #include "pointplot.h"
 #include "simpletable.h"
 #include "tableplot.h"
@@ -10,16 +11,21 @@
 
 #include <glm/gtx/quaternion.hpp>
 
+#include <string>
+#include <string_view>
+
 #include <QColor>
 #include <QDebug>
+
+using namespace std::literals;
 
 struct ColorListArgument {
     std::vector<glm::vec3> colors;
 
     ColorListArgument() = default;
-    ColorListArgument(noo::AnyVarRef av) {
-        auto reals     = av.coerce_real_list();
-        auto real_span = reals.span();
+    ColorListArgument(QCborValue av) {
+        auto reals     = noo::coerce_to_real_list(av);
+        auto real_span = std::span(reals);
 
         if (reals.size()) {
 
@@ -35,18 +41,18 @@ struct ColorListArgument {
 
         // not real list. string list?
 
-        if (av.has_list()) {
-            auto raw_colors = av.to_vector();
+        if (av.isArray()) {
+            auto raw_colors = av.toArray();
 
             colors.reserve(raw_colors.size());
 
-            raw_colors.for_each([&](auto, auto const& raw_c) {
-                auto str = raw_c.to_string();
+            for (auto const& raw_c : raw_colors) {
+                auto str = raw_c.toString();
 
-                auto c = QColor(noo::to_qstring(str));
+                auto c = QColor(str);
 
                 colors.emplace_back(c.redF(), c.greenF(), c.blueF());
-            });
+            }
         }
     }
 };
@@ -55,9 +61,9 @@ struct Scale3DListArgument {
     std::vector<glm::vec3> scales;
 
     Scale3DListArgument() = default;
-    Scale3DListArgument(noo::AnyVarRef av) {
-        auto reals     = av.coerce_real_list();
-        auto real_span = reals.span();
+    Scale3DListArgument(QCborValue av) {
+        auto reals     = noo::coerce_to_real_list(av);
+        auto real_span = std::span(reals);
 
         if (reals.size()) {
 
@@ -77,9 +83,9 @@ struct Scale2DListArgument {
     std::vector<glm::vec2> scales;
 
     Scale2DListArgument() = default;
-    Scale2DListArgument(noo::AnyVarRef av) {
-        auto reals     = av.coerce_real_list();
-        auto real_span = reals.span();
+    Scale2DListArgument(QCborValue av) {
+        auto reals     = noo::coerce_to_real_list(av);
+        auto real_span = std::span(reals);
 
         if (reals.size()) {
 
@@ -137,22 +143,22 @@ void SharedDomain::ask_update_input_bounds(glm::vec3 l, glm::vec3 h) {
     emit domain_updated();
 }
 
-void SharedDomain::set_axis_labels(std::string x_axis_title,
-                                   std::string y_axis_title,
-                                   std::string z_axis_title) {
+void SharedDomain::set_axis_labels(QString x_axis_title,
+                                   QString y_axis_title,
+                                   QString z_axis_title) {
     m_x_axis_title = std::move(x_axis_title);
     m_y_axis_title = std::move(y_axis_title);
     m_z_axis_title = std::move(z_axis_title);
     emit labels_updated();
 }
 
-std::string SharedDomain::x_axis_title() const {
+QString SharedDomain::x_axis_title() const {
     return m_x_axis_title;
 }
-std::string SharedDomain::y_axis_title() const {
+QString SharedDomain::y_axis_title() const {
     return m_y_axis_title;
 }
-std::string SharedDomain::z_axis_title() const {
+QString SharedDomain::z_axis_title() const {
     return m_z_axis_title;
 }
 
@@ -179,10 +185,17 @@ void Plotty::make_box() {
         { 4, 6 }, { 5, 7 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
     };
 
+    if (!m_box_mat) {
+        noo::MaterialData md;
+
+        m_box_mat = noo::create_material(m_doc, md);
+    }
+
 
     if (!m_box_mesh) {
-        noo::BufferMeshDataRef md;
+        noo::MeshSource md;
 
+        md.material  = m_box_mat;
         md.positions = box_p;
         md.colors    = box_c;
         md.lines     = box_i;
@@ -190,18 +203,11 @@ void Plotty::make_box() {
         m_box_mesh = noo::create_mesh(m_doc, md);
     }
 
-    if (!m_box_mat) {
-        noo::MaterialData md;
-        md.color = { 1, 1, 1, 1 };
-
-        m_box_mat = noo::create_material(m_doc, md);
-    }
-
 
     noo::ObjectData nd;
-    nd.parent   = plot_root();
-    nd.material = m_box_mat;
-    nd.mesh     = m_box_mesh;
+    nd.parent     = plot_root();
+    nd.definition = noo::ObjectRenderableDefinition { .mesh = m_box_mesh };
+    nd.tags       = QStringList() << noo::names::tag_user_hidden;
 
 
     m_box = noo::create_object(m_doc, nd);
@@ -215,7 +221,7 @@ void Plotty::rebuild_axis() {
 
 
     auto make_axis =
-        [&](std::string const& t, glm::vec3 pos, glm::vec3 orientation) {
+        [&](QString const& t, glm::vec3 pos, glm::vec3 orientation) {
             auto rot =
                 glm::rotation(glm::vec3(1, 0, 0), glm::normalize(orientation));
 
@@ -228,11 +234,13 @@ void Plotty::rebuild_axis() {
             otd.text   = t;
             otd.height = .05;
 
-            noo::ObjectData nd;
-            nd.parent    = plot_root();
-            nd.transform = tf;
-            nd.text      = otd;
+            auto name = "Axis " + t;
 
+            noo::ObjectData nd;
+            nd.name       = name;
+            nd.parent     = plot_root();
+            nd.transform  = tf;
+            nd.definition = otd;
 
             return noo::create_object(m_doc, nd);
         };
@@ -251,13 +259,12 @@ struct ForceToGLMVec3 {
     glm::vec3 v;
 
     ForceToGLMVec3() = default;
-    ForceToGLMVec3(noo::AnyVarRef rv) {
-        auto l  = rv.coerce_real_list();
-        auto sp = l.span();
+    ForceToGLMVec3(QCborValue rv) {
+        auto reals = noo::coerce_to_real_list(rv);
 
-        v.x = noo::get_or_default(sp, 0);
-        v.y = noo::get_or_default(sp, 1);
-        v.z = noo::get_or_default(sp, 2);
+        v.x = reals.value(0);
+        v.y = reals.value(1);
+        v.z = reals.value(2);
     }
 };
 
@@ -266,11 +273,11 @@ auto make_set_domain_method(Plotty& p) {
     m.method_name            = "set_domain";
     m.documentation          = "Set table bounds";
     m.argument_documentation = {
-        { "[ real ] ", "3-tuple input bb min" },
-        { "[ real ] ", "3-tuple input bb max" },
-        { "[ real ] ", "3-tuple output bb min" },
-        { "[ real ] ", "3-tuple output bb max" },
-        { "[ string ] ", "3-tuple strings for axis names" },
+        { "input_min", "3-tuple input bb min", noo::names::hint_reallist },
+        { "input_max", "3-tuple input bb max", noo::names::hint_reallist },
+        { "output_min", "3-tuple output bb min", noo::names::hint_reallist },
+        { "output_max", "3-tuple output bb max", noo::names::hint_reallist },
+        { "axis_names", "3-tuple strings for axis names", "[text]" },
     };
     m.return_documentation = "An integer plot id";
 
@@ -292,11 +299,11 @@ auto make_set_domain_method(Plotty& p) {
 
         p.domain()->set_domain_auto_updates(false);
         p.domain()->ask_set_domain(d);
-        p.domain()->set_axis_labels(noo::get_or_default(strings.list, 0),
-                                    noo::get_or_default(strings.list, 1),
-                                    noo::get_or_default(strings.list, 2));
+        p.domain()->set_axis_labels(strings.list.value(0),
+                                    strings.list.value(1),
+                                    strings.list.value(2));
 
-        return noo::AnyVar {};
+        return QCborValue {};
     });
 
     return noo::create_method(p.document().get(), m);
@@ -305,19 +312,27 @@ auto make_set_domain_method(Plotty& p) {
 // Add points ==================================================================
 
 auto make_new_point_plot_method(Plotty& p) {
+
+
     noo::MethodData m;
     m.method_name            = "new_point_plot";
     m.documentation          = "Create a new point plot";
     m.argument_documentation = {
-        { "[x ...]", "A list of point x values." },
-        { "[y ...]", "A list of point y values." },
-        { "[z ...]", "A list of point z values." },
-        { "[ c ]",
+        { "xvals", "A list of point x values.", noo::names::hint_reallist },
+        { "yvals", "A list of point y values.", noo::names::hint_reallist },
+        { "zvals", "A list of point z values.", noo::names::hint_reallist },
+        { "colors",
           "An optional list of colors. Can be a 1D array of 3-stride floats "
-          "for RGB, or a "
-          "list of hex strings" },
-        { "[sx sy sz sx sy sz]",
-          "An optional list of 3D scales, laid out in a 1D array." }
+          "for RGB, or a list of hex strings. Can be null to skip",
+          "[string] | reallist" },
+        { "scales",
+          "An optional list of 3D scales, laid out in a 1D array. Can be null "
+          "to skip.",
+          "reallist" },
+        { "annos",
+          "An optional list of string annotations. Must be the same length as "
+          "the list of x values.",
+          "[string]" },
     };
     m.return_documentation = "An integer plot id";
 
@@ -327,19 +342,22 @@ auto make_new_point_plot_method(Plotty& p) {
                     noo::RealListArg    ys,
                     noo::RealListArg    zs,
                     ColorListArgument   cols,
-                    Scale3DListArgument scales) -> noo::AnyVar {
+                    Scale3DListArgument scales,
+                    noo::StringListArg  strings) -> QCborValue {
         if (xs.list.size() != ys.list.size() or
             xs.list.size() != zs.list.size()) {
             throw noo::MethodException(
+                noo::ErrorCodes::INVALID_PARAMS,
                 "Coordinate arrays must be the same length");
         }
 
         return p.append<PointPlot>(-1,
-                                   xs.list.span(),
-                                   ys.list.span(),
-                                   zs.list.span(),
+                                   std::span(xs.list),
+                                   std::span(ys.list),
+                                   std::span(zs.list),
                                    std::move(cols.colors),
-                                   std::move(scales.scales));
+                                   std::move(scales.scales),
+                                   std::move(strings.list));
     });
 
     return noo::create_method(p.document().get(), m);
@@ -354,13 +372,14 @@ auto make_new_line_segment_plot_method(Plotty& p) {
         "Create a new line segment plot. Points given are connected in pairs "
         "to create disconnected lines: a <-> b,  c <-> d";
     m.argument_documentation = {
-        { "[x ...]", "A list of point x values." },
-        { "[y ...]", "A list of point y values." },
-        { "[z ...]", "A list of point z values." },
-        { "[ c ]",
+        { "xvals", "A list of point x values.", "reallist" },
+        { "yvals", "A list of point y values.", "reallist" },
+        { "zvals", "A list of point z values.", "reallist" },
+        { "colors",
           "A list of colors, one color for each point. Can be a 1D array of "
-          "3-tuple floats for RGB, or a list of hex strings" },
-        { "[sx sy sx sy]", "A list of 2D scales, laid out in a 1D array." }
+          "3-tuple floats for RGB, or a list of hex strings",
+          "[string] | reallist" },
+        { "scales", "A list of 2D scales, laid out in a 1D array.", "reallist" }
     };
     m.return_documentation = "An integer plot id";
 
@@ -369,17 +388,18 @@ auto make_new_line_segment_plot_method(Plotty& p) {
                     noo::RealListArg    ys,
                     noo::RealListArg    zs,
                     ColorListArgument   cols,
-                    Scale2DListArgument scales) -> noo::AnyVar {
+                    Scale2DListArgument scales) -> QCborValue {
         if (xs.list.size() != ys.list.size() or
             xs.list.size() != zs.list.size()) {
             throw noo::MethodException(
+                noo::ErrorCodes::INVALID_PARAMS,
                 "Coordinate arrays must be the same length");
         }
 
         return p.append<LineSegmentPlot>(-1,
-                                         xs.list.span(),
-                                         ys.list.span(),
-                                         zs.list.span(),
+                                         std::span(xs.list),
+                                         std::span(ys.list),
+                                         std::span(zs.list),
                                          std::move(cols.colors),
                                          std::move(scales.scales));
     });
@@ -394,18 +414,22 @@ auto make_new_image_plot_method(Plotty& p) {
     m.method_name            = "new_image_plot";
     m.documentation          = "Create a new image plane";
     m.argument_documentation = {
-        { "", "Bytes of the on-disk image." },
-        { "", "Point for the top-left of image plane" },
-        { "", "Point for the bottom-left of image plane" },
-        { "", "Point for the bottom-right of image plane" }
+        { "image", "Bytes of the on-disk image.", "data" },
+        { "top_left", "Point for the top-left of image plane", "reallist" },
+        { "bottom_left",
+          "Point for the bottom-left of image plane",
+          "reallist" },
+        { "bottom_right",
+          "Point for the bottom-right of image plane",
+          "reallist" }
     };
     m.return_documentation = "An integer plot id";
 
     m.set_code([&](noo::MethodContext const&,
-                   std::span<std::byte const> data,
-                   ForceToGLMVec3             pa,
-                   ForceToGLMVec3             pb,
-                   ForceToGLMVec3             pc) {
+                   QByteArray     data,
+                   ForceToGLMVec3 pa,
+                   ForceToGLMVec3 pb,
+                   ForceToGLMVec3 pc) {
         return p.append<ImagePlot>(-1, data, pa.v, pb.v, pc.v);
     });
 
@@ -436,7 +460,7 @@ auto make_new_image_plot_method(Plotty& p) {
 //        std::vector<std::pair<float, glm::vec3>> color_map;
 
 //        ColorMapArg() = default;
-//        ColorMapArg(noo::AnyVarRef a) {
+//        ColorMapArg(QCborValue a) {
 //            auto cmap_list = a.to_vector();
 
 //            cmap_list.for_each([&](auto, auto v) {
@@ -503,7 +527,11 @@ Plotty::Plotty(uint16_t port) {
             this,
             &Plotty::on_domain_updated);
 
-    m_server = noo::create_server(port);
+    noo::ServerOptions options {
+        .port = port,
+    };
+
+    m_server = noo::create_server(options);
 
     qInfo() << "Creating server, listening on port" << port;
 
@@ -519,21 +547,25 @@ Plotty::Plotty(uint16_t port) {
         //        auto ptr = make_load_table_method(*this);
         //        docup.method_list.push_back(ptr);
 
+        QVector<noo::MethodTPtr> methods;
+
 
         auto ptr = make_new_point_plot_method(*this);
-        docup.method_list.push_back(ptr);
+        methods.push_back(ptr);
 
         ptr = make_new_line_segment_plot_method(*this);
-        docup.method_list.push_back(ptr);
+        methods.push_back(ptr);
 
         ptr = make_new_image_plot_method(*this);
-        docup.method_list.push_back(ptr);
+        methods.push_back(ptr);
 
         ptr = make_set_domain_method(*this);
-        docup.method_list.push_back(ptr);
+        methods.push_back(ptr);
 
         //        ptr = make_update_table_method(*this);
         //        docup.method_list.push_back(ptr);
+
+        docup.method_list = methods;
     }
 
     noo::update_document(m_doc, docup);
@@ -541,7 +573,12 @@ Plotty::Plotty(uint16_t port) {
     {
         noo::ObjectData nd;
 
-        Q_ASSERT(m_doc);
+        nd.name = "Plot Root";
+
+        nd.create_callbacks = [this](noo::ObjectT* t) {
+            return std::make_unique<PlottyRootCallbacks>(this, t);
+        };
+
 
         m_plot_root = noo::create_object(m_doc, nd);
     }
@@ -550,8 +587,9 @@ Plotty::Plotty(uint16_t port) {
         auto& nl = m_lights.emplace_back();
 
         noo::LightData light_data;
-        light_data.color     = { color.redF(), color.greenF(), color.blueF() };
+        light_data.color     = color;
         light_data.intensity = i;
+        light_data.type      = noo::PointLight {};
 
         nl.l = noo::create_light(m_doc, light_data);
 
@@ -559,7 +597,9 @@ Plotty::Plotty(uint16_t port) {
 
         nd.transform = glm::translate(glm::mat4(1), p);
 
-        nd.lights.push_back(nl.l);
+        nd.lights.emplace().push_back(nl.l);
+
+        nd.tags.emplace().emplace_back(noo::names::tag_user_hidden);
 
         nl.o = noo::create_object(m_doc, nd);
     };

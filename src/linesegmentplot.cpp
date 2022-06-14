@@ -51,15 +51,14 @@ static auto build_common_tube(noo::DocumentTPtr doc) {
     }
 
     noo::MaterialData mat;
-    mat.color        = { 1, 1, 1, 1 };
-    mat.metallic     = 0;
-    mat.roughness    = 1;
-    mat.use_blending = false;
+    mat.pbr_info.base_color = Qt::white;
+    mat.pbr_info.metallic   = 0;
 
     auto mat_ptr = create_material(doc, mat);
 
-    noo::BufferMeshDataRef mesh_data;
+    noo::MeshSource mesh_data;
 
+    mesh_data.material  = mat_ptr;
     mesh_data.positions = tube_vertex_info;
     mesh_data.normals   = ns;
     mesh_data.triangles = fs;
@@ -67,9 +66,8 @@ static auto build_common_tube(noo::DocumentTPtr doc) {
     auto mesh = create_mesh(doc, mesh_data);
 
     noo::ObjectData object_data;
-    object_data.material  = mat_ptr;
-    object_data.transform = glm::mat4(1);
-    object_data.mesh      = mesh;
+    object_data.definition = noo::ObjectRenderableDefinition { .mesh = mesh };
+    object_data.transform  = glm::mat4(1);
 
     auto obj = create_object(doc, object_data);
 
@@ -107,10 +105,7 @@ void LineSegmentPlot::rebuild_instances() {
         m[3] = glm::vec4(scale_array[i % scale_array.size()], 1, 1);
     }
 
-    noo::ObjectUpdateData up;
-    up.instances = m_instances;
-
-    noo::update_object(m_obj, up);
+    update_instances(m_instances, m_host->document(), m_obj, m_mesh);
 }
 
 

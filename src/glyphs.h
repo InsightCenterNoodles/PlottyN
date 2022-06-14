@@ -9,6 +9,8 @@ struct GlyphInfo {
     noo::ObjectTPtr   obj;
 };
 
-GlyphInfo build_common_sphere(noo::DocumentTPtr doc, noo::TableTPtr table = {});
+GlyphInfo build_common_sphere(QString           name,
+                              noo::DocumentTPtr doc,
+                              noo::TableTPtr    table = {});
 
 #endif // GLYPHS_H

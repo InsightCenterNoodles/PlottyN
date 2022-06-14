@@ -1,5 +1,8 @@
 #include "simpletable.h"
 
+
+#include <unordered_set>
+
 #include <QDebug>
 
 #if 0
@@ -209,33 +212,36 @@ std::vector<std::string> SimpleTable::get_all_selections() {
 
 #endif
 
-LoadTableArg::LoadTableArg(noo::AnyVarRef var) {
-    if (var.has_list()) {
-        auto l = var.to_vector();
+LoadTableArg::LoadTableArg(QCborValue var) {
+    if (var.isArray()) {
+        auto l = var.toArray();
 
         auto ls = l.size();
 
-        for (size_t i = 0; i < ls; i++) {
+        for (int i = 0; i < ls; i++) {
             cols.emplace_back(l[i]);
         }
-    } else if (auto m = var.to_map(); m.size()) {
+    } else if (auto m = var.toMap(); m.size()) {
 
         for (auto const& [k, v] : m) {
-            cols.emplace_back(k, v.coerce_real_list().span());
+            cols.emplace_back(k.toString(), noo::coerce_to_real_list(v));
         }
     }
 }
 
-SimpleTable::SimpleTable(std::string_view               _n,
-                         std::vector<LoadTableColumn>&& cols)
-    : noo::TableSource(nullptr), name(_n) {
+SimpleTable::SimpleTable(QString n, std::vector<LoadTableColumn>&& cols)
+    : noo::TableSource(nullptr), name(n) {
 
     if (cols.empty()) return;
 
     for (auto& a : cols) {
         auto& new_a = m_columns.emplace_back();
 
-        new_a      = std::move(a.reals);
+        if (a.reals.size()) {
+            new_a = a.reals;
+        } else {
+            new_a = std::move(a.strings);
+        }
         new_a.name = a.name;
     }
 
@@ -247,4 +253,90 @@ SimpleTable::SimpleTable(std::string_view               _n,
     for (size_t i = 0; i < m_row_to_key_map.size(); i++) {
         m_key_to_row_map[i] = i;
     }
+}
+
+
+void SimpleTable::modify_selection(QString            slot,
+                                   std::span<int64_t> keys,
+                                   int                select_action) {
+
+    // we DONT play with the ranges!
+    // TODO: figure out how to deal with ranges
+
+
+    // is there a current selection with that slot?
+
+    noo::Selection ref;
+    ref.name = slot;
+
+    auto iter = m_selections.find(slot);
+
+    if (iter == m_selections.end()) {
+        // add if not deselecting
+
+        if (select_action < 0) return;
+
+        ref.rows = QVector<int64_t>(keys.begin(), keys.end());
+
+        ask_update_selection(ref);
+
+        return;
+    }
+
+    auto const& current_selection = iter.value();
+
+    // slot exists
+
+    if (select_action == 0) {
+        ref.rows = QVector<int64_t>(keys.begin(), keys.end());
+
+        ask_update_selection(ref);
+
+        return;
+    }
+
+    if (select_action < 0) {
+        // diff
+
+        // current list
+        QVector<int64_t> new_list;
+
+        std::unordered_set<int64_t> to_del_list;
+        to_del_list.insert(keys.begin(), keys.end());
+
+        for (auto key : current_selection.rows) {
+            if (to_del_list.contains(key)) { continue; }
+
+            new_list.push_back(key);
+        }
+
+        ref.rows = new_list;
+
+        ask_update_selection(ref);
+
+        return;
+    }
+
+    if (select_action > 0) {
+        // add
+
+        QVector<int64_t> new_list;
+        new_list << QVector<int64_t>(keys.begin(), keys.end());
+        new_list << current_selection.rows;
+
+        std::sort(new_list.begin(), new_list.end());
+        auto last = std::unique(new_list.begin(), new_list.end());
+
+        new_list.erase(last, new_list.end());
+
+        ref.rows = new_list;
+
+        ask_update_selection(ref);
+
+        return;
+    }
+
+    // well, this cant be good
+
+    qWarning() << "Unknown selection action";
 }

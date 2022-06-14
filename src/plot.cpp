@@ -36,17 +36,18 @@ static auto make_get_id_method(Plotty& host, noo::DocumentTPtr doc_ptr) {
     method_data.return_documentation =
         "The integer id of the plot. -1 if there is none.";
 
-    method_data.set_code([&host](noo::MethodContext const& ctx) -> noo::AnyVar {
+    method_data.set_code([&host](noo::MethodContext const& ctx) -> QCborValue {
         auto obj = ctx.get_object();
 
         if (!obj)
             throw noo::MethodException(
+                noo::ErrorCodes::INVALID_REQUEST,
                 "Method should only be called on an object");
 
         auto const& plots = host.all_plots();
 
         for (auto const& [k, v] : plots) {
-            if (v->object() == obj) { return k; }
+            if (v->object() == obj) { return qint64(k); }
         }
 
         return -1;
@@ -56,6 +57,12 @@ static auto make_get_id_method(Plotty& host, noo::DocumentTPtr doc_ptr) {
 }
 
 void Plot::domain_updated(Domain const&) { }
+
+void Plot::handle_selection(SpatialSelection const&) { }
+
+Plot::ProbeResult Plot::handle_probe(glm::vec3 const&) {
+    return {};
+}
 
 Plot::Plot(Plotty& host, int64_t id)
     : m_host(&host), m_doc(host.document()), m_plot_id(id) {
