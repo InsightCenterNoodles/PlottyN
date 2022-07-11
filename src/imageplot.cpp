@@ -52,9 +52,11 @@ void ImagePlot::rebuild(Domain const& d) {
 
         noo::MeshSource ref;
 
-        ref.positions = positions;
-        ref.normals   = normals;
-        ref.triangles = index;
+        ref.positions    = positions;
+        ref.normals      = normals;
+        ref.indicies     = std::as_bytes(std::span(index));
+        ref.index_format = noo::Format::U16;
+        ref.type         = noo::MeshSource::TRIANGLE;
 
 
         auto key = QStringLiteral("mesh");

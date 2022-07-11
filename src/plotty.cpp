@@ -188,6 +188,8 @@ void Plotty::make_box() {
     if (!m_box_mat) {
         noo::MaterialData md;
 
+        md.pbr_info.base_color = Qt::white;
+
         m_box_mat = noo::create_material(m_doc, md);
     }
 
@@ -195,10 +197,12 @@ void Plotty::make_box() {
     if (!m_box_mesh) {
         noo::MeshSource md;
 
-        md.material  = m_box_mat;
-        md.positions = box_p;
-        md.colors    = box_c;
-        md.lines     = box_i;
+        md.material     = m_box_mat;
+        md.positions    = box_p;
+        md.colors       = box_c;
+        md.indicies     = std::as_bytes(std::span(box_i));
+        md.index_format = noo::Format::U16;
+        md.type         = noo::MeshSource::LINE;
 
         m_box_mesh = noo::create_mesh(m_doc, md);
     }

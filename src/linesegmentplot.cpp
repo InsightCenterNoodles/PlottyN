@@ -58,10 +58,12 @@ static auto build_common_tube(noo::DocumentTPtr doc) {
 
     noo::MeshSource mesh_data;
 
-    mesh_data.material  = mat_ptr;
-    mesh_data.positions = tube_vertex_info;
-    mesh_data.normals   = ns;
-    mesh_data.triangles = fs;
+    mesh_data.material     = mat_ptr;
+    mesh_data.positions    = tube_vertex_info;
+    mesh_data.normals      = ns;
+    mesh_data.indicies     = std::as_bytes(std::span(fs));
+    mesh_data.index_format = noo::Format::U16;
+    mesh_data.type         = noo::MeshSource::TRIANGLE;
 
     auto mesh = create_mesh(doc, mesh_data);
 
