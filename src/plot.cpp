@@ -76,7 +76,7 @@ Plot::Plot(Plotty& host, int64_t id)
         m_get_id_method = method;
     }
 
-    connect(host.domain(), &SharedDomain::domain_updated, [&]() {
+    connect(host.domain(), &SharedDomain::domain_updated, this, [&]() {
         auto const& d = host.domain()->current_domain();
         domain_updated(d);
     });

@@ -15,9 +15,9 @@ public:
                          Domain const&);
 
     struct ArrayRef {
-        std::span<double const> px, py, pz;
-        std::span<double const> cr, cg, cb;
-        std::span<double const> sx, sy, sz;
+        std::span<float const> px, py, pz;
+        std::span<float const> cr, cg, cb;
+        std::span<float const> sx, sy, sz;
     };
 
     void build_instances(ArrayRef const& ref, Domain const&);

@@ -8,10 +8,21 @@
 #include "scattercore.h"
 
 class PointPlot : public Plot {
-    enum { PX, PY, PZ, CR, CG, CB, SX, SY, SZ };
 
 protected:
-    DataSource m_data_source;
+    using SpecType = SpecificTable<float, // position
+                                   float,
+                                   float,
+                                   float, // colors
+                                   float,
+                                   float,
+                                   float, // scales
+                                   float,
+                                   float,
+                                   QString // anno
+                                   >;
+
+    DataSource<SpecType> m_data_source;
 
     ScatterCore m_scatter_instances;
 
@@ -25,9 +36,9 @@ protected:
 public:
     PointPlot(Plotty&                  host,
               int64_t                  id,
-              std::span<double const>  px,
-              std::span<double const>  py,
-              std::span<double const>  pz,
+              std::span<float const>   px,
+              std::span<float const>   py,
+              std::span<float const>   pz,
               std::vector<glm::vec3>&& colors,
               std::vector<glm::vec3>&& scales,
               QStringList&&            strings);

@@ -16,9 +16,9 @@ std::pair<glm::vec3, glm::vec3> min_max_of(std::span<glm::vec3 const> v) {
 }
 
 
-std::pair<glm::vec3, glm::vec3> min_max_of(std::span<double const> x,
-                                           std::span<double const> y,
-                                           std::span<double const> z) {
+std::pair<glm::vec3, glm::vec3> min_max_of(std::span<float const> x,
+                                           std::span<float const> y,
+                                           std::span<float const> z) {
     if (x.empty() or y.empty() or z.empty()) return { {}, {} };
 
     glm::vec3 lmin(x[0], y[0], z[0]);

@@ -9,12 +9,14 @@
 
 #include <QDebug>
 
+enum { PX, PY, PZ, CR, CG, CB, SX, SY, SZ, ANNO };
+
 void PointPlot::rebuild_instances() {
     auto d = m_host->domain()->current_domain();
 
-    auto px = m_data_source.get_doubles_at(m_column_mapping[PX]);
-    auto py = m_data_source.get_doubles_at(m_column_mapping[PY]);
-    auto pz = m_data_source.get_doubles_at(m_column_mapping[PZ]);
+    auto px = m_data_source.column<PX>();
+    auto py = m_data_source.column<PY>();
+    auto pz = m_data_source.column<PZ>();
 
     m_scatter_instances.build_instances(
         {
@@ -22,13 +24,13 @@ void PointPlot::rebuild_instances() {
             .py = py,
             .pz = pz,
 
-            .cr = m_data_source.get_doubles_at(m_column_mapping[CR]),
-            .cg = m_data_source.get_doubles_at(m_column_mapping[CG]),
-            .cb = m_data_source.get_doubles_at(m_column_mapping[CB]),
+            .cr = m_data_source.column<CR>(),
+            .cg = m_data_source.column<CG>(),
+            .cb = m_data_source.column<CB>(),
 
-            .sx = m_data_source.get_doubles_at(m_column_mapping[SX]),
-            .sy = m_data_source.get_doubles_at(m_column_mapping[SY]),
-            .sz = m_data_source.get_doubles_at(m_column_mapping[SZ]),
+            .sx = m_data_source.column<SX>(),
+            .sy = m_data_source.column<SY>(),
+            .sz = m_data_source.column<SZ>(),
         },
         d);
 
@@ -45,21 +47,26 @@ void PointPlot::rebuild_instances() {
 
 const QString brush_selection_name = "brushed";
 
-template <class Function>
-std::vector<int64_t> build_keys(DataSource&        source,
-                                ScatterCore const& instances,
-                                Function&&         function) {
+template <class DS, class Function>
+std::vector<int64_t> build_select_keys(DS const& source, Function&& function) {
     std::vector<int64_t> keys;
 
-    auto const& map = source.table().get_row_to_key_map();
+    auto const& t = source.table();
 
-    auto const& inst = instances.instances();
+    auto all_keys = t.get_all_keys();
 
-    for (size_t i = 0; i < inst.size(); i++) {
-        auto const& m = inst[i];
-        auto        p = glm::vec3(m[0]);
+    // auto const& map = source.table().get_row_to_key_map();
 
-        if (function(p)) { keys.push_back(map[i]); }
+    // auto const& inst = instances.instances();
+
+    for (int key : all_keys) {
+
+
+        auto p = glm::vec3(t.template get_column_at_key<PX>(key),
+                           t.template get_column_at_key<PY>(key),
+                           t.template get_column_at_key<PZ>(key));
+
+        if (function(p)) { keys.push_back(key); }
     }
 
     return keys;
@@ -67,8 +74,8 @@ std::vector<int64_t> build_keys(DataSource&        source,
 
 void PointPlot::select(SelectRegion const& sel) {
 
-    std::vector<int64_t> keys = build_keys(
-        m_data_source, m_scatter_instances, [&sel](glm::vec3 const& p) {
+    std::vector<int64_t> keys =
+        build_select_keys(m_data_source, [&sel](glm::vec3 const& p) {
             if (!glm::all(glm::greaterThanEqual(p, sel.min))) return false;
             if (!glm::all(glm::lessThanEqual(p, sel.max))) return false;
             return true;
@@ -88,8 +95,7 @@ void PointPlot::select(SelectSphere const& sel) {
         return radius_sq < d;
     };
 
-    std::vector<int64_t> keys =
-        build_keys(m_data_source, m_scatter_instances, test);
+    std::vector<int64_t> keys = build_select_keys(m_data_source, test);
 
     m_data_source.table().modify_selection(
         brush_selection_name, keys, sel.select);
@@ -104,8 +110,7 @@ void PointPlot::select(SelectPlane const& sel) {
         return d > 0;
     };
 
-    std::vector<int64_t> keys =
-        build_keys(m_data_source, m_scatter_instances, test);
+    std::vector<int64_t> keys = build_select_keys(m_data_source, test);
 
     m_data_source.table().modify_selection(
         brush_selection_name, keys, sel.select);
@@ -156,8 +161,7 @@ void PointPlot::select(SelectHull const& sel) {
         return is_point_in(p, sel.points, sel.index);
     };
 
-    std::vector<int64_t> keys =
-        build_keys(m_data_source, m_scatter_instances, test);
+    std::vector<int64_t> keys = build_select_keys(m_data_source, test);
 
     m_data_source.table().modify_selection(
         brush_selection_name, keys, sel.select);
@@ -165,9 +169,9 @@ void PointPlot::select(SelectHull const& sel) {
 
 PointPlot::PointPlot(Plotty&                  host,
                      int64_t                  id,
-                     std::span<double const>  px,
-                     std::span<double const>  py,
-                     std::span<double const>  pz,
+                     std::span<float const>   px,
+                     std::span<float const>   py,
+                     std::span<float const>   pz,
                      std::vector<glm::vec3>&& colors,
                      std::vector<glm::vec3>&& scales,
                      QStringList&&            strings)
@@ -242,8 +246,8 @@ PointPlot::PointPlot(Plotty&                  host,
             columns.emplace_back("annotation", std::move(strings));
         }
 
-        auto tbl = std::make_shared<SimpleTable>(
-            QString("Point Table %1").arg(id), std::move(columns));
+        auto tbl = std::make_shared<SpecType>(QString("Point Table %1").arg(id),
+                                              std::move(columns));
 
         m_data_source = DataSource(m_doc, tbl);
     }
@@ -264,12 +268,12 @@ PointPlot::PointPlot(Plotty&                  host,
     rebuild_instances();
 
     connect(&m_data_source.table(),
-            &SimpleTable::table_row_deleted,
+            &SpecType::table_row_deleted,
             this,
             &PointPlot::on_table_updated);
 
     connect(&m_data_source.table(),
-            &SimpleTable::table_row_updated,
+            &SpecType::table_row_updated,
             this,
             &PointPlot::on_table_updated);
 }
@@ -291,48 +295,39 @@ Plot::ProbeResult PointPlot::handle_probe(glm::vec3 const& probe_point) {
 
     auto const cutoff_dist_sq = cutoff_dist * cutoff_dist;
 
-    auto const& map = m_data_source.table().get_row_to_key_map();
+    auto const& t = m_data_source.table();
 
-    auto const& inst = m_scatter_instances.instances();
+    auto all_keys = t.get_all_keys();
 
-    int64_t   best_index   = -1;
+    int64_t   best_key     = -1;
     float     best_dist_sq = cutoff_dist_sq; // others must be less than this...
     glm::vec3 best_point;
 
-    for (size_t i = 0; i < inst.size(); i++) {
-        auto const& m = inst[i];
-        auto        p = glm::vec3(m[0]);
+    for (size_t i = 0; i < all_keys.size(); i++) {
+        auto key = all_keys[i];
+
+        auto p = glm::vec3(t.template get_column_at_key<PX>(key),
+                           t.template get_column_at_key<PY>(key),
+                           t.template get_column_at_key<PZ>(key));
 
         auto dist_sq = glm::distance2(p, probe_point);
 
         if (best_dist_sq <= dist_sq) continue;
 
-        best_index   = i;
+        best_key     = i;
         best_dist_sq = dist_sq;
         best_point   = p;
     }
 
 
-    if (best_index < 0) return {};
+    if (best_key < 0) return {};
 
-    QString text = QString("Key: %1").arg(map[best_index]);
+    QString text = QString("Key: %1").arg(best_key);
 
-    { // if there is an annotation field, use it.
-        auto const& cols = m_data_source.table().get_columns();
+    QString anno = t.template get_column_at_key<ANNO>(best_key);
 
-        for (auto const& c : cols) {
-            if (c.name != "annotation") continue;
-
-            auto strings = c.as_string();
-
-            if (strings.empty()) continue;
-
-            auto anno_string = strings[best_index % strings.size()];
-
-            text += ": " + anno_string;
-
-            break;
-        }
+    if (anno.isEmpty()) { // if there is an annotation field, use it.
+        text += ": " + anno;
     }
 
     return {

@@ -19,6 +19,17 @@
 
 using namespace std::literals;
 
+struct FloatListArg {
+    QVector<float> list;
+
+    FloatListArg() = default;
+    FloatListArg(QCborValue const& a) {
+        for (auto v : a.toArray()) {
+            list << v.toDouble();
+        }
+    }
+};
+
 struct ColorListArgument {
     std::vector<glm::vec3> colors;
 
@@ -342,9 +353,9 @@ auto make_new_point_plot_method(Plotty& p) {
 
 
     m.set_code([&p](noo::MethodContext const&,
-                    noo::RealListArg    xs,
-                    noo::RealListArg    ys,
-                    noo::RealListArg    zs,
+                    FloatListArg        xs,
+                    FloatListArg        ys,
+                    FloatListArg        zs,
                     ColorListArgument   cols,
                     Scale3DListArgument scales,
                     noo::StringListArg  strings) -> QCborValue {

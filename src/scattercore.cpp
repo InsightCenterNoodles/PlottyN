@@ -69,8 +69,8 @@ void ScatterCore::build_instances(ArrayRef const& ref, Domain const& domain) {
 
     if (m_instances.empty()) return;
 
-    glm::dvec3 default_col(1);
-    glm::dvec3 default_scale(.05);
+    glm::vec3 default_col(1);
+    glm::vec3 default_scale(.05);
 
     auto col_r = seat_span(ref.cr, default_col.r);
     auto col_g = seat_span(ref.cg, default_col.g);
