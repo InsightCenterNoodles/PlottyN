@@ -33,60 +33,85 @@ struct FloatListArg {
 struct ColorListArgument {
     std::vector<glm::vec3> colors;
 
+    glm::vec3 decode_color(QCborValue v) {
+
+        switch (v.type()) {
+        case QCborValue::Type::String: {
+            auto str = v.toString();
+
+            auto c = QColor(str);
+
+            return glm::vec3(c.redF(), c.greenF(), c.blueF());
+        }
+        case QCborValue::Type::Array: {
+            auto this_arr = v.toArray();
+            return glm::vec3(this_arr.at(0).toDouble(),
+                             this_arr.at(1).toDouble(),
+                             this_arr.at(2).toDouble());
+        }
+        case QCborValue::Type::Integer: {
+            return glm::vec3(v.toInteger()) / 255.0f;
+        }
+        case QCborValue::Type::Double: {
+            return glm::vec3(v.toDouble());
+        }
+        default: return glm::vec3(1);
+        }
+    }
+
     ColorListArgument() = default;
     ColorListArgument(QCborValue av) {
-        auto reals     = noo::coerce_to_real_list(av);
-        auto real_span = std::span(reals);
 
-        if (reals.size()) {
-
-            colors.resize(reals.size() / 3);
-
-            for (size_t i = 0; i < colors.size(); i += 3) {
-                colors[i] = { real_span[i + 0],
-                              real_span[i + 1],
-                              real_span[i + 2] };
-            }
+        if (!av.isArray()) {
+            colors.push_back(decode_color(av));
             return;
         }
 
-        // not real list. string list?
+        auto local_arr = av.toArray();
 
-        if (av.isArray()) {
-            auto raw_colors = av.toArray();
+        colors.reserve(local_arr.size());
 
-            colors.reserve(raw_colors.size());
-
-            for (auto const& raw_c : raw_colors) {
-                auto str = raw_c.toString();
-
-                auto c = QColor(str);
-
-                colors.emplace_back(c.redF(), c.greenF(), c.blueF());
-            }
+        for (auto const& c : local_arr) {
+            colors.push_back(decode_color(c));
         }
     }
 };
 
 struct Scale3DListArgument {
-    std::vector<glm::vec3> scales;
+    std::vector<float> scales;
 
     Scale3DListArgument() = default;
     Scale3DListArgument(QCborValue av) {
-        auto reals     = noo::coerce_to_real_list(av);
-        auto real_span = std::span(reals);
+        auto reals = noo::coerce_to_real_list(av);
 
+        // we will let the users of this figure out how to handle this list
         if (reals.size()) {
-
-            scales.resize(reals.size() / 3);
-
-            for (size_t i = 0; i < scales.size(); i += 3) {
-                scales[i] = { real_span[i + 0],
-                              real_span[i + 1],
-                              real_span[i + 2] };
-            }
+            scales = std::vector<float>(reals.begin(), reals.end());
             return;
         }
+    }
+
+    std::vector<glm::vec3> make_scale_vector(std::span<float> source,
+                                             size_t           num_points) {
+
+        if (source.empty()) return {};
+
+        std::vector<glm::vec3> ret;
+
+        ret.resize(num_points);
+
+        if (num_points == source.size() / 3) {
+            for (size_t i = 0; i < source.size(); i += 3) {
+                ret[i] = { source[i + 0], source[i + 1], source[i + 2] };
+            }
+        } else {
+
+            for (size_t i = 0; i < source.size(); i++) {
+                ret[i] = glm::vec3(source[i]);
+            }
+        }
+
+        return ret;
     }
 };
 
@@ -366,13 +391,14 @@ auto make_new_point_plot_method(Plotty& p) {
                 "Coordinate arrays must be the same length");
         }
 
-        return p.append<PointPlot>(-1,
-                                   std::span(xs.list),
-                                   std::span(ys.list),
-                                   std::span(zs.list),
-                                   std::move(cols.colors),
-                                   std::move(scales.scales),
-                                   std::move(strings.list));
+        return p.append<PointPlot>(
+            -1,
+            std::span(xs.list),
+            std::span(ys.list),
+            std::span(zs.list),
+            std::move(cols.colors),
+            scales.make_scale_vector(scales.scales, xs.list.size()),
+            std::move(strings.list));
     });
 
     return noo::create_method(p.document().get(), m);

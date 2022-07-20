@@ -73,6 +73,7 @@ build_common_sphere(QString name, noo::DocumentTPtr doc, noo::TableTPtr table) {
     noo::MaterialData mat;
     mat.pbr_info.base_color = Qt::white;
     mat.pbr_info.metallic   = 0;
+    mat.pbr_info.roughness  = .75;
 
     auto mat_ptr = create_material(doc, mat);
 
