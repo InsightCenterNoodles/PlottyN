@@ -54,7 +54,7 @@ void ImagePlot::rebuild(Domain const& d) {
 
         ref.positions    = positions;
         ref.normals      = normals;
-        ref.indicies     = std::as_bytes(std::span(index));
+        ref.indices      = std::as_bytes(std::span(index));
         ref.index_format = noo::Format::U16;
         ref.type         = noo::MeshSource::TRIANGLE;
 

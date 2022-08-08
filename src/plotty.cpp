@@ -236,7 +236,7 @@ void Plotty::make_box() {
         md.material     = m_box_mat;
         md.positions    = box_p;
         md.colors       = box_c;
-        md.indicies     = std::as_bytes(std::span(box_i));
+        md.indices      = std::as_bytes(std::span(box_i));
         md.index_format = noo::Format::U16;
         md.type         = noo::MeshSource::LINE;
 

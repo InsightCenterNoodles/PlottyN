@@ -81,7 +81,7 @@ build_common_sphere(QString name, noo::DocumentTPtr doc, noo::TableTPtr table) {
     mesh_data.material     = mat_ptr;
     mesh_data.positions    = sphere_vertex_info;
     mesh_data.normals      = sphere_normal_info;
-    mesh_data.indicies     = std::as_bytes(std::span(sphere_index_info));
+    mesh_data.indices      = std::as_bytes(std::span(sphere_index_info));
     mesh_data.index_format = noo::Format::U16;
     mesh_data.type         = noo::MeshSource::TRIANGLE;
 
